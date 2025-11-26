@@ -7,8 +7,8 @@ const router = express.Router();
 //   processAndUpload,
 // } = require('../middleware/uploadImageMiddleware');
 
-const { login } = require('../Services/authServices');
+const { login, signup } = require('../Services/authServices');
 
 router.post('/login', login);
-
+router.post('/signup', signup);
 module.exports = router;

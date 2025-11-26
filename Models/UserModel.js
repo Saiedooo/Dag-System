@@ -3,17 +3,17 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
-    firstName: {
+    userName: {
       type: String,
       required: [true, 'username required'],
     },
     lastName: {
       type: String,
-      required: [true, 'last name Required'],
+      // required: [true, 'last name Required'],
     },
     email: {
       type: String,
-      required: [true, 'email required'],
+      // required: [true, 'email required'],
       unique: true,
       lowercase: true,
     },
@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
     },
     age: {
       type: Number,
-      required: [true, 'age required'],
+      // required: [true, 'age required'],
     },
     phoneNumber: String, //phone
 
@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema(
     },
     address: {
       type: String,
-      required: [true, 'must be add your address'],
+      // required: [true, 'must be add your address'],
     },
     review: {
       type: mongoose.Schema.Types.ObjectId,

@@ -14,6 +14,15 @@ const bcrypt = require('bcryptjs');
 
 const User = require('../Models/UserModel.js');
 
+exports.signup = asyncHandler(async (req, res, next) => {
+  // create User
+  const user = await User.create(req.body);
+  // generate Token
+  const token = createToken(user._id);
+
+  res.status(201).json({ data: user, token });
+});
+
 exports.login = asyncHandler(async (req, res, next) => {
   // Check if user exists & check if password is correct
   const user = await User.findOne({ email: req.body.email });

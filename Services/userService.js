@@ -52,7 +52,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: document });
 });
 
-exports.createUser = asyncHandler(async (req, res) => {
+exports.createUser = asyncHandler(async (req, res, next) => {
   const newDoc = await userModel.create(req.body);
   res.status(201).json({ data: newDoc });
 });
@@ -80,7 +80,5 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
   //Still   Paginate
   // Execute query
 
-  res
-    .status(200)
-    .json({ results: documentsCounts, data: documents });
+  res.status(200).json({ results: documentsCounts, data: documents });
 });
