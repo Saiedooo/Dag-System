@@ -7,8 +7,13 @@ const {
   updateUser,
   deleteUser,
   uploadUserImage,
-  resizeImage,
 } = require('../Services/userService');
+
+const {
+  uploadSingleImage,
+  processAndUpload,
+  uploadUserImages,
+} = require('../middleware/uploadImageMiddleware');
 
 const authService = require('../Services/authServices');
 
@@ -19,14 +24,7 @@ const router = express.Router();
 // Admin
 // router.use(authService.allowedTo('admin', 'manager'));
 
-router
-  .route('/')
-  .get(getAllUsers)
-  .post(uploadUserImage, resizeImage, createUser);
-router
-  .route('/:id')
-  .get(getUserById)
-  .put(uploadUserImage, resizeImage, updateUser)
-  .delete(deleteUser);
+router.route('/').get(getAllUsers).post(createUser);
+router.route('/:id').get(getUserById).put(updateUser).delete(deleteUser);
 
 module.exports = router;

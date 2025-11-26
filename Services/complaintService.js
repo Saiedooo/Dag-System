@@ -4,26 +4,26 @@ const ApiError = require('../utils/apiError');
 const { uploadSingleImage } = require('../middleware/uploadImageMiddleware');
 const complaintModel = require('../Models/complaintModel');
 
-// Upload single image
-exports.uploadUserImage = uploadSingleImage('image');
+// // Upload single image
+// exports.uploadUserImage = uploadSingleImage('image');
 
-// Image processing
-exports.resizeImage = asyncHandler(async (req, res, next) => {
-  const filename = `user-${uuidv4()}-${Date.now()}.jpeg`;
+// // Image processing
+// exports.resizeImage = asyncHandler(async (req, res, next) => {
+//   const filename = `user-${uuidv4()}-${Date.now()}.jpeg`;
 
-  if (req.file) {
-    await sharp(req.file.buffer)
-      .resize(600, 600)
-      .toFormat('jpeg')
-      .jpeg({ quality: 95 })
-      .toFile(`uploads/users/${filename}`);
+//   if (req.file) {
+//     await sharp(req.file.buffer)
+//       .resize(600, 600)
+//       .toFormat('jpeg')
+//       .jpeg({ quality: 95 })
+//       .toFile(`uploads/users/${filename}`);
 
-    // Save image into our db
-    req.body.image = filename;
-  }
+//     // Save image into our db
+//     req.body.image = filename;
+//   }
 
-  next();
-});
+//   next();
+// });
 
 exports.deleteComplaint = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
@@ -78,11 +78,10 @@ exports.getAllComplaints = asyncHandler(async (req, res) => {
   let filter = {};
 
   // Build query
-  const documentsCounts = await complaintModel.countDocuments();
+  const documents = await complaintModel.find(filter);
+  const documentsCounts = documents.length;
   //Still   Paginate
   // Execute query
 
-  res
-    .status(200)
-    .json({ results: documentsCounts.length, data: documentsCounts });
+  res.status(200).json({ results: documentsCounts, data: documents });
 });

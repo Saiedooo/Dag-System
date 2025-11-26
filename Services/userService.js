@@ -3,6 +3,8 @@ const ApiError = require('../utils/apiError');
 // const ApiFeatures = require('../utils/apiFeatures');
 const { uploadSingleImage } = require('../middleware/uploadImageMiddleware');
 const userModel = require('../Models/UserModel.js');
+const { v4: uuidv4 } = require('uuid');
+const sharp = require('sharp');
 
 // Upload single image
 exports.uploadUserImage = uploadSingleImage('profileImg');
@@ -73,11 +75,12 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
   let filter = {};
 
   // Build query
-  const documentsCounts = await userModel.countDocuments();
+  const documents = await userModel.find(filter);
+  const documentsCounts = documents.length;
   //Still   Paginate
   // Execute query
 
   res
     .status(200)
-    .json({ results: documentsCounts.length, data: documentsCounts });
+    .json({ results: documentsCounts, data: documents });
 });

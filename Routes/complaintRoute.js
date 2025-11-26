@@ -6,10 +6,13 @@ const {
   createComplaint,
   updateComplaint,
   deleteComplaint,
-
-  uploadUserImage,
-  resizeImage,
 } = require('../Services/complaintService');
+
+const {
+  uploadSingleImage,
+  processAndUpload,
+  uploadUserImages,
+} = require('../middleware/uploadImageMiddleware');
 
 const authService = require('../Services/authServices');
 
@@ -23,11 +26,11 @@ const router = express.Router();
 router
   .route('/')
   .get(getAllComplaints)
-  .post(uploadUserImage, resizeImage, createComplaint);
+  .post(uploadUserImages, processAndUpload, createComplaint);
 router
   .route('/:id')
   .get(getComplaintById)
-  .put(uploadUserImage, resizeImage, updateComplaint)
+  .put(uploadUserImages, processAndUpload, updateComplaint)
   .delete(deleteComplaint);
 
 module.exports = router;
