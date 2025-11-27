@@ -63,14 +63,15 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  try {
-    this.password = await bcrypt.hash(this.password, 12);
-    next();
-  } catch (error) {
-    next(error);
+userSchema.pre('save', async function () {
+  // Only hash the password if it has been modified (or is new)
+  if (!this.isModified('password')) {
+    return;
   }
+
+  // Hash password with cost of 12
+  // In Mongoose 9, async hooks don't need next() - errors are automatically handled
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
 const User = mongoose.model('User', userSchema);

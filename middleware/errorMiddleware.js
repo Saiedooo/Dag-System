@@ -20,14 +20,43 @@ const handleJwtInvalidSignature = () =>
 const handleJwtExpired = () =>
   new ApiError('Expired token, please login again..', 401);
 
+const handleMongooseValidationError = (err) => {
+  const errors = Object.values(err.errors).map((el) => el.message);
+  const message = `Invalid input data. ${errors.join('. ')}`;
+  return new ApiError(message, 400);
+};
+
+const handleMongooseDuplicateFieldsError = (err) => {
+  const value = err.errmsg?.match(/(["'])(\\?.)*?\1/)?.[0];
+  const message = `Duplicate field value: ${value}. Please use another value!`;
+  return new ApiError(message, 400);
+};
+
 const globalError = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
+
+  // Handle Mongoose validation errors
+  if (err.name === 'ValidationError') {
+    err = handleMongooseValidationError(err);
+  }
+
+  // Handle Mongoose duplicate field errors
+  if (err.code === 11000) {
+    err = handleMongooseDuplicateFieldsError(err);
+  }
+
+  // Handle JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    err = handleJwtInvalidSignature();
+  }
+  if (err.name === 'TokenExpiredError') {
+    err = handleJwtExpired();
+  }
+
   if (process.env.NODE_ENV === 'development') {
     sendErrorForDev(err, res);
   } else {
-    if (err.name === 'JsonWebTokenError') err = handleJwtInvalidSignature();
-    if (err.name === 'TokenExpiredError') err = handleJwtExpired();
     sendErrorForProd(err, res);
   }
 };
