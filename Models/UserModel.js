@@ -11,12 +11,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       // required: [true, 'last name Required'],
     },
-    email: {
-      type: String,
-      // required: [true, 'email required'],
-      unique: true,
-      lowercase: true,
-    },
+    // email: {
+    //   type: String,
+    //   // required: [true, 'email required'],
+    //   unique: true,
+    //   lowercase: true,
+    // },
     gender: {
       type: String,
       enum: ['male', 'female'],
