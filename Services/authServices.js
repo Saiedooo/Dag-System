@@ -37,7 +37,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   const token = createToken(user._id);
 
   // Send Response
-  res.status(200).json({ data: user, token });
+  res.status(200).json({ user: user, token });
 });
 
 exports.protect = asyncHandler(async (req, res, next) => {
