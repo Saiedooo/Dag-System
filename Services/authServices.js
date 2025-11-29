@@ -25,10 +25,10 @@ exports.signup = asyncHandler(async (req, res, next) => {
 
 exports.login = asyncHandler(async (req, res, next) => {
   // Check if user exists & check if password is correct
-  const user = await User.findOne({ email: req.body.email });
+  const user = await User.findOne({ userName: req.body.userName });
 
   if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
-    return next(new ApiError('Incorrect Email Or password', 401));
+    return next(new ApiError('Incorrect userName Or password', 401));
   }
 
   // Check if the account is active
