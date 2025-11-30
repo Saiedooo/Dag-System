@@ -30,15 +30,15 @@ const complaintLogEntrySchema = new mongoose.Schema(
   {
     user: {
       type: String,
-      required: true,
+      // required: true,
     },
     date: {
       type: String,
-      required: true,
+      // required: true,
     },
     action: {
       type: String,
-      required: true,
+      // required: true,
     },
   },
   { _id: false }
@@ -49,52 +49,52 @@ const complaintSchema = new mongoose.Schema(
     complaintId: {
       type: String,
       unique: true,
-      required: true,
+      // required: true,
     },
     customerId: {
       type: String,
-      required: true,
+      // required: true,
     },
     customerName: {
       type: String,
-      required: true,
+      // required: true,
     },
     dateOpened: {
       type: String,
-      required: true,
+      // required: true,
     },
     channel: {
       type: String,
       enum: Object.values(ComplaintChannel),
-      required: true,
+      // required: true,
     },
     type: {
       type: String,
-      required: true,
+      // required: true,
     },
     priority: {
       type: String,
       enum: Object.values(ComplaintPriority),
-      required: true,
+      // required: true,
     },
     status: {
       type: String,
       enum: Object.values(ComplaintStatus),
       default: ComplaintStatus.Open,
-      required: true,
+      //  required: true,
     },
     description: {
       type: String,
-      required: true,
+      // required: true,
     },
     assignedTo: {
       type: String,
-      required: false,
+      //  required: false,
     },
     resolutionNotes: {
       type: String,
       default: '',
-      required: true,
+      // required: true,
     },
     dateClosed: {
       type: String,
@@ -106,15 +106,15 @@ const complaintSchema = new mongoose.Schema(
     },
     productId: {
       type: String,
-      required: false,
+      //required: false,
     },
     productColor: {
       type: String,
-      required: false,
+      //required: false,
     },
     productSize: {
       type: String,
-      required: false,
+      //required: false,
     },
     attachments: {
       type: [String], // Array of base64 strings
@@ -122,7 +122,7 @@ const complaintSchema = new mongoose.Schema(
     },
     lastModified: {
       type: String,
-      required: true,
+      //  required: true,
     },
   },
   { timestamps: true }

@@ -39,9 +39,54 @@ exports.deleteComplaint = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateComplaint = asyncHandler(async (req, res, next) => {
+  // Map 'customer' field to 'customerId' if provided
+  if (req.body.customer && !req.body.customerId) {
+    req.body.customerId = req.body.customer;
+    delete req.body.customer;
+  }
+
+  // Trim and validate status if provided
+  if (req.body.status) {
+    req.body.status = req.body.status.trim();
+    const validStatuses = Object.values(complaintModel.ComplaintStatus);
+    if (!validStatuses.includes(req.body.status)) {
+      // If status is not valid, remove it to keep existing value
+      delete req.body.status;
+    }
+  }
+
+  // Remove any fields that don't exist in the schema to prevent validation errors
+  const allowedFields = [
+    'complaintId',
+    'customerId',
+    'customerName',
+    'dateOpened',
+    'channel',
+    'type',
+    'priority',
+    'status',
+    'description',
+    'assignedTo',
+    'resolutionNotes',
+    'dateClosed',
+    'log',
+    'productId',
+    'productColor',
+    'productSize',
+    'attachments',
+    'lastModified',
+  ];
+
+  const filteredBody = {};
+  Object.keys(req.body).forEach((key) => {
+    if (allowedFields.includes(key)) {
+      filteredBody[key] = req.body[key];
+    }
+  });
+
   const document = await complaintModel.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    filteredBody,
     {
       new: true,
     }
@@ -55,8 +100,56 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: document });
 });
 
-exports.createComplaint = asyncHandler(async (req, res) => {
-  const newDoc = await complaintModel.create(req.body);
+exports.createComplaint = asyncHandler(async (req, res, next) => {
+  // Map 'customer' field to 'customerId' if provided
+  if (req.body.customer && !req.body.customerId) {
+    req.body.customerId = req.body.customer;
+    delete req.body.customer;
+  }
+
+  // Trim and validate status
+  if (req.body.status) {
+    req.body.status = req.body.status.trim();
+    const validStatuses = Object.values(complaintModel.ComplaintStatus);
+    if (!validStatuses.includes(req.body.status)) {
+      // If status is not valid, set to default
+      req.body.status = complaintModel.ComplaintStatus.Open;
+    }
+  } else {
+    // Set default status if not provided
+    req.body.status = complaintModel.ComplaintStatus.Open;
+  }
+
+  // Remove any fields that don't exist in the schema to prevent validation errors
+  const allowedFields = [
+    'complaintId',
+    'customerId',
+    'customerName',
+    'dateOpened',
+    'channel',
+    'type',
+    'priority',
+    'status',
+    'description',
+    'assignedTo',
+    'resolutionNotes',
+    'dateClosed',
+    'log',
+    'productId',
+    'productColor',
+    'productSize',
+    'attachments',
+    'lastModified',
+  ];
+
+  const filteredBody = {};
+  Object.keys(req.body).forEach((key) => {
+    if (allowedFields.includes(key)) {
+      filteredBody[key] = req.body[key];
+    }
+  });
+
+  const newDoc = await complaintModel.create(filteredBody);
   res.status(201).json({ data: newDoc });
 });
 
