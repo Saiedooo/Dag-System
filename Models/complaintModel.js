@@ -131,6 +131,19 @@ const complaintSchema = new mongoose.Schema(
   }
 );
 
+// Remove any 'customer' field before validation (safety check)
+complaintSchema.pre('validate', function (next) {
+  if (this.customer !== undefined) {
+    // If customer field exists, map it to customerId if customerId is not set
+    if (!this.customerId && this.customer) {
+      this.customerId = String(this.customer);
+    }
+    // Remove customer field
+    delete this.customer;
+  }
+  next();
+});
+
 // Generate complaintId before saving if not provided
 complaintSchema.pre('save', async function (next) {
   if (!this.complaintId) {
