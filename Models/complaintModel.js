@@ -125,7 +125,10 @@ const complaintSchema = new mongoose.Schema(
       //  required: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    strict: true, // Ignore fields not in schema
+  }
 );
 
 // Generate complaintId before saving if not provided

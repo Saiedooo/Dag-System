@@ -39,10 +39,27 @@ exports.deleteComplaint = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateComplaint = asyncHandler(async (req, res, next) => {
-  // Map 'customer' field to 'customerId' if provided
-  if (req.body.customer && !req.body.customerId) {
-    req.body.customerId = req.body.customer;
+  // Handle customer field - support both 'customer' and 'customerId'
+  // Accept string IDs (like "CUST-0001") or MongoDB ObjectIds
+  if (req.body.customer) {
+    // If customer is provided, use it as customerId
+    // Convert to string if it's an ObjectId or object
+    if (typeof req.body.customer === 'object' && req.body.customer._id) {
+      req.body.customerId = String(req.body.customer._id);
+    } else if (
+      typeof req.body.customer === 'object' &&
+      req.body.customer.toString
+    ) {
+      req.body.customerId = req.body.customer.toString();
+    } else {
+      req.body.customerId = String(req.body.customer);
+    }
     delete req.body.customer;
+  }
+
+  // Ensure customerId is a string (handle ObjectId if needed)
+  if (req.body.customerId && typeof req.body.customerId === 'object') {
+    req.body.customerId = String(req.body.customerId);
   }
 
   // Trim and validate status if provided
@@ -101,10 +118,27 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
 });
 
 exports.createComplaint = asyncHandler(async (req, res, next) => {
-  // Map 'customer' field to 'customerId' if provided
-  if (req.body.customer && !req.body.customerId) {
-    req.body.customerId = req.body.customer;
+  // Handle customer field - support both 'customer' and 'customerId'
+  // Accept string IDs (like "CUST-0001") or MongoDB ObjectIds
+  if (req.body.customer) {
+    // If customer is provided, use it as customerId
+    // Convert to string if it's an ObjectId or object
+    if (typeof req.body.customer === 'object' && req.body.customer._id) {
+      req.body.customerId = String(req.body.customer._id);
+    } else if (
+      typeof req.body.customer === 'object' &&
+      req.body.customer.toString
+    ) {
+      req.body.customerId = req.body.customer.toString();
+    } else {
+      req.body.customerId = String(req.body.customer);
+    }
     delete req.body.customer;
+  }
+
+  // Ensure customerId is a string (handle ObjectId if needed)
+  if (req.body.customerId && typeof req.body.customerId === 'object') {
+    req.body.customerId = String(req.body.customerId);
   }
 
   // Trim and validate status
