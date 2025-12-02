@@ -25,8 +25,9 @@ const app = express();
 app.use(express.json());
 
 // Enable other domains to access your application
- app.use(cors());
- app.options('*', cors());
+app.use(cors());
+// CORS middleware will handle OPTIONS automatically for allowed origins,
+// so we don't need a separate app.options wildcard route here.
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
