@@ -1,11 +1,12 @@
 const multer = require('multer');
 const sharp = require('sharp');
 const ApiError = require('../utils/apiError');
+const { put } = require('@vercel/blob'); // Vercel Blob
 
-// Configure multer for memory storage
+// Multer memory storage
 const multerStorage = multer.memoryStorage();
 
-// Only allow image mimetypes
+// Allow image-only uploads
 const multerFilter = (req, file, cb) => {
   if (file.mimetype && file.mimetype.startsWith('image')) {
     cb(null, true);
@@ -14,35 +15,44 @@ const multerFilter = (req, file, cb) => {
   }
 };
 
-// Base upload instance (memory + image-only + size limit)
 const upload = multer({
   storage: multerStorage,
   fileFilter: multerFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
-// Upload a single image (used for users, profile, etc.)
-exports.uploadSingleImage = (fieldName) => upload.single(fieldName);
-
-// Upload up to 5 complaint attachments from field "attachments"
+// Upload max 5 images (attachments)
 exports.uploadUserImages = upload.array('attachments', 5);
 
-// Process attachments: resize/compress and convert to base64, then call next()
+// Process images + upload to Vercel Blob
 exports.processAndUpload = async (req, res, next) => {
   try {
     if (!req.files || req.files.length === 0) return next();
 
-    const attachments = await Promise.all(
-      req.files.map(async (file) => {
-        const buffer = await sharp(file.buffer)
-          .jpeg({ quality: 80 })
-          .toBuffer();
+    const attachments = [];
 
-        return `data:image/jpeg;base64,${buffer.toString('base64')}`;
-      })
-    );
+    for (const file of req.files) {
+      // Resize/Compress
+      const optimized = await sharp(file.buffer)
+        .resize(1200) // optional
+        .jpeg({ quality: 80 })
+        .toBuffer();
 
-    // If there are existing attachments in the body, merge them
+      // Upload to Vercel Blob
+      const blob = await put(
+        `complaints/${Date.now()}-${file.originalname}`,
+        optimized,
+        {
+          access: 'public',
+          contentType: 'image/jpeg',
+        }
+      );
+
+      // Save URL only
+      attachments.push(blob.url);
+    }
+
+    // Merge with existing items
     if (Array.isArray(req.body.attachments)) {
       req.body.attachments = [...req.body.attachments, ...attachments];
     } else {
@@ -55,27 +65,3 @@ exports.processAndUpload = async (req, res, next) => {
     next(new ApiError(`Error processing images: ${error.message}`, 400));
   }
 };
-
-// const multer = require('multer');
-// const ApiError = require('../utils/apiError');
-
-// const multerOptions = () => {
-//   const multerStorage = multer.memoryStorage();
-
-//   const multerFilter = function (req, file, cb) {
-//     if (file.mimetype.startsWith('image')) {
-//       cb(null, true);
-//     } else {
-//       cb(new ApiError('Only Images allowed', 400), false);
-//     }
-//   };
-
-//   const upload = multer({ storage: multerStorage, fileFilter: multerFilter });
-
-//   return upload;
-// };
-
-// exports.uploadSingleImage = (fieldName) => multerOptions().single(fieldName);
-
-// exports.uploadMixOfImages = (arrayOfFields) =>
-//   multerOptions().fields(arrayOfFields);
