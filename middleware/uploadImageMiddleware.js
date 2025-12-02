@@ -21,6 +21,9 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+// Upload a single image (used for user profile, etc.)
+exports.uploadSingleImage = (fieldName) => upload.single(fieldName);
+
 // Upload max 5 images (attachments)
 exports.uploadUserImages = upload.array('attachments', 5);
 

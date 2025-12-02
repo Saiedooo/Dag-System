@@ -8,11 +8,6 @@ const {
   deleteComplaint,
 } = require('../Services/complaintService');
 
-const {
-  uploadComplaintImages,
-  processComplaintImages,
-} = require('../middleware/uploadImageMiddleware');
-
 const authService = require('../Services/authServices');
 
 const router = express.Router();
@@ -23,12 +18,13 @@ const router = express.Router();
 router
   .route('/')
   .get(getAllComplaints)
-  .post(uploadComplaintImages, processComplaintImages, createComplaint);
+  // Frontend sends JSON (no multipart), so skip upload middleware here
+  .post(createComplaint);
 
 router
   .route('/:id')
   .get(getComplaintById)
-  .put(uploadComplaintImages, processComplaintImages, updateComplaint)
+  .put(updateComplaint)
   .delete(deleteComplaint);
 
 module.exports = router;
