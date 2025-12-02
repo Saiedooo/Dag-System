@@ -1,6 +1,5 @@
 const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
-const { uploadSingleImage } = require('../middleware/uploadImageMiddleware');
 const complaintModel = require('../Models/complaintModel');
 
 // GET all complaints
@@ -31,10 +30,6 @@ exports.createComplaint = asyncHandler(async (req, res, next) => {
       body.customerId = String(body.customer);
     }
     delete body.customer;
-  }
-
-  if (body.customerId !== undefined && typeof body.customerId === 'object') {
-    body.customerId = String(body.customerId);
   }
 
   // Validate/normalize status
@@ -95,9 +90,6 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
     }
     delete body.customer;
   }
-  if (body.customerId !== undefined && typeof body.customerId === 'object') {
-    body.customerId = String(body.customerId);
-  }
 
   // Validate status if exists
   if (body.status) {
@@ -141,7 +133,6 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
 
   if (!document)
     throw new ApiError(`No document for this id ${req.params.id}`, 404);
-
   res.status(200).json({ data: document });
 });
 
