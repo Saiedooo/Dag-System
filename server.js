@@ -26,7 +26,7 @@ app.use(express.json());
 
 // Enable other domains to access your application
 app.use(cors());
-// app.options('*', cors());
+ app.options('*', cors());
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
