@@ -97,30 +97,24 @@ exports.processImage = async (req, res, next) => {
   }
 };
 
-// Upload multiple fields
+// ----- User images (existing behavior) -----
 exports.uploadUserImages = upload.fields([
   { name: 'personalPhoto', maxCount: 1 },
   { name: 'idPhoto', maxCount: 1 },
   { name: 'businessCardPhoto', maxCount: 1 },
 ]);
 
-// Process multiple images
 exports.processAndUpload = async (req, res, next) => {
   try {
-    if (!req.files) {
-      return next();
-    }
+    if (!req.files) return next();
 
-    // Process each file type if it exists
     const processPromises = Object.keys(req.files).map(async (fieldName) => {
       const file = req.files[fieldName][0];
 
-      // Generate unique filename with timestamp and UUID
       const timestamp = Date.now();
       const uniqueId = uuidv4();
       const filename = `user-${uniqueId}-${timestamp}-${fieldName}.jpeg`;
 
-      // Process image with Sharp
       const processedBuffer = await sharp(file.buffer)
         .resize(800, 800, {
           fit: 'contain',
@@ -130,14 +124,12 @@ exports.processAndUpload = async (req, res, next) => {
         .jpeg({ quality: 90 })
         .toBuffer();
 
-      // Upload to Vercel Blob with token
       const token = getBlobToken();
       const { url } = await put(filename, processedBuffer, {
         access: 'public',
-        token: token,
+        token,
       });
 
-      // Store the URL in req.body
       req.body[fieldName] = url;
     });
 
@@ -146,6 +138,38 @@ exports.processAndUpload = async (req, res, next) => {
   } catch (error) {
     console.error('Image processing error:', error);
     next(new ApiError(`Error processing images: ${error.message}`, 400));
+  }
+};
+
+// ----- Complaint attachments as base64 -----
+// Upload up to 5 files from field "attachments" and convert them to base64 strings
+exports.uploadComplaintImages = upload.array('attachments', 5);
+
+exports.processComplaintImages = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) return next();
+
+    const attachments = await Promise.all(
+      req.files.map(async (file) => {
+        const buffer = await sharp(file.buffer)
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        // Correct template string for data URL
+        return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+      })
+    );
+
+    // Merge with existing attachments if any
+    if (Array.isArray(req.body.attachments)) {
+      req.body.attachments = [...req.body.attachments, ...attachments];
+    } else {
+      req.body.attachments = attachments;
+    }
+
+    next();
+  } catch (err) {
+    next(err);
   }
 };
 
