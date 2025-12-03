@@ -1,145 +1,134 @@
 const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
-const complaintModel = require('../Models/complaintModel');
 
-// GET all complaints
-exports.getAllComplaints = asyncHandler(async (req, res, next) => {
-  const documents = await complaintModel.find({});
-  res.status(200).json({ results: documents.length, data: documents });
-});
+const {
+  Complaint,
+  ComplaintStatus,
+  ComplaintPriority,
+  ComplaintChannel,
+} = require('../Models/complaintModel');
 
-// GET complaint by ID
-exports.getComplaintById = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-  const document = await complaintModel.findById(id);
-  if (!document) throw new ApiError(`No document for this id ${id}`, 404);
-  res.status(200).json({ data: document });
-});
+// ========== SERVICE FUNCTIONS ==========
 
-// CREATE complaint
+// Create Complaint
+const createComplaintService = async (data) => {
+  return await Complaint.create(data);
+};
+
+// Get All Complaints
+const getAllComplaintsService = async () => {
+  return await Complaint.find();
+};
+
+// Get Single Complaint
+const getComplaintByIdService = async (id) => {
+  const complaint = await Complaint.findById(id);
+  return complaint;
+};
+
+// Update Complaint
+const updateComplaintService = async (id, data) => {
+  const complaint = await Complaint.findByIdAndUpdate(id, data, {
+    new: true,
+    runValidators: true,
+  });
+  return complaint;
+};
+
+// Delete Complaint
+const deleteComplaintService = async (id) => {
+  const complaint = await Complaint.findByIdAndDelete(id);
+  return complaint;
+};
+
+// ========== CONTROLLER ==========
+
+// CREATE
 exports.createComplaint = asyncHandler(async (req, res, next) => {
-  const body = { ...req.body };
+  const data = req.body;
 
-  // Normalize customer -> customerId
-  if (body.customer !== undefined && body.customer !== null) {
-    if (typeof body.customer === 'object' && body.customer._id) {
-      body.customerId = String(body.customer._id);
-    } else if (typeof body.customer === 'object' && body.customer.toString) {
-      body.customerId = body.customer.toString();
-    } else {
-      body.customerId = String(body.customer);
-    }
-    delete body.customer;
+  if (
+    !data.customerName ||
+    !data.customerEmail ||
+    !data.customerPhone ||
+    !data.complaintText
+  ) {
+    return next(new ApiError('Missing required fields', 400));
   }
 
-  // Validate/normalize status
-  if (body.status) {
-    body.status = String(body.status).trim();
-    const validStatuses = Object.values(complaintModel.ComplaintStatus);
-    if (!validStatuses.includes(body.status)) {
-      body.status = complaintModel.ComplaintStatus.Open;
-    }
-  } else {
-    body.status = complaintModel.ComplaintStatus.Open;
-  }
+  const complaint = await createComplaintService(data);
 
-  // Filter allowed fields
-  const allowedFields = new Set([
-    'complaintId',
-    'customerId',
-    'customerName',
-    'dateOpened',
-    'channel',
-    'type',
-    'priority',
-    'status',
-    'description',
-    'assignedTo',
-    'resolutionNotes',
-    'dateClosed',
-    'log',
-    'productId',
-    'productColor',
-    'productSize',
-    'attachments',
-    'lastModified',
-  ]);
-
-  const filteredBody = {};
-  Object.keys(body).forEach((k) => {
-    if (allowedFields.has(k)) filteredBody[k] = body[k];
+  res.status(201).json({
+    status: 'success',
+    data: complaint,
   });
-
-  const newDoc = new complaintModel(filteredBody);
-  await newDoc.save();
-  res.status(201).json({ data: newDoc });
 });
 
-// UPDATE complaint
+// GET ALL
+exports.getAllComplaints = asyncHandler(async (req, res, next) => {
+  const complaints = await getAllComplaintsService();
+
+  res.status(200).json({
+    status: 'success',
+    results: complaints.length,
+    data: complaints,
+  });
+});
+
+// GET ONE
+exports.getComplaintById = asyncHandler(async (req, res, next) => {
+  const complaint = await getComplaintByIdService(req.params.id);
+
+  if (!complaint) {
+    return next(new ApiError('Complaint not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: complaint,
+  });
+});
+
+// UPDATE
 exports.updateComplaint = asyncHandler(async (req, res, next) => {
-  const body = { ...req.body };
+  const allowedStatus = Object.values(ComplaintStatus);
+  const allowedPriority = Object.values(ComplaintPriority);
+  const allowedChannel = Object.values(ComplaintChannel);
 
-  // Normalize customer -> customerId
-  if (body.customer !== undefined && body.customer !== null) {
-    if (typeof body.customer === 'object' && body.customer._id) {
-      body.customerId = String(body.customer._id);
-    } else if (typeof body.customer === 'object' && body.customer.toString) {
-      body.customerId = body.customer.toString();
-    } else {
-      body.customerId = String(body.customer);
-    }
-    delete body.customer;
+  if (req.body.status && !allowedStatus.includes(req.body.status)) {
+    return next(new ApiError('Invalid status value', 400));
   }
 
-  // Validate status if exists
-  if (body.status) {
-    body.status = String(body.status).trim();
-    const validStatuses = Object.values(complaintModel.ComplaintStatus);
-    if (!validStatuses.includes(body.status)) delete body.status;
+  if (req.body.priority && !allowedPriority.includes(req.body.priority)) {
+    return next(new ApiError('Invalid priority value', 400));
   }
 
-  // Filter allowed fields
-  const allowedFields = new Set([
-    'complaintId',
-    'customerId',
-    'customerName',
-    'dateOpened',
-    'channel',
-    'type',
-    'priority',
-    'status',
-    'description',
-    'assignedTo',
-    'resolutionNotes',
-    'dateClosed',
-    'log',
-    'productId',
-    'productColor',
-    'productSize',
-    'attachments',
-    'lastModified',
-  ]);
+  if (req.body.channel && !allowedChannel.includes(req.body.channel)) {
+    return next(new ApiError('Invalid channel value', 400));
+  }
 
-  const filteredBody = {};
-  Object.keys(body).forEach((k) => {
-    if (allowedFields.has(k)) filteredBody[k] = body[k];
+  const complaint = await updateComplaintService(req.params.id, req.body);
+
+  if (!complaint) {
+    return next(new ApiError('Complaint not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: complaint,
   });
-
-  const document = await complaintModel.findByIdAndUpdate(
-    req.params.id,
-    filteredBody,
-    { new: true, runValidators: true }
-  );
-
-  if (!document)
-    throw new ApiError(`No document for this id ${req.params.id}`, 404);
-  res.status(200).json({ data: document });
 });
 
-// DELETE complaint
+// DELETE
 exports.deleteComplaint = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-  const document = await complaintModel.findByIdAndDelete(id);
-  if (!document) throw new ApiError(`No document for this id ${id}`, 404);
-  res.status(204).send();
+  const complaint = await deleteComplaintService(req.params.id);
+
+  if (!complaint) {
+    return next(new ApiError('Complaint not found', 404));
+  }
+
+  res.status(204).json({
+    status: 'success',
+    message: 'Complaint deleted successfully',
+  });
 });
