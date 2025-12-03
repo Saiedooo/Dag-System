@@ -8,10 +8,11 @@ exports.getAllCustomers = asyncHandler(async (req, res) => {
   res.status(200).json({ results: customers.length, data: customers });
 });
 
-// Get single customer by Mongo _id
+// Get single customer by custom id field (not MongoDB _id)
 exports.getCustomerById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const customer = await Customer.findById(id);
+  // Search by custom 'id' field, not MongoDB '_id'
+  const customer = await Customer.findOne({ id: id });
   if (!customer) {
     return next(new ApiError(`No customer for this id ${id}`, 404));
   }
@@ -28,9 +29,32 @@ exports.createCustomer = asyncHandler(async (req, res, next) => {
       return next(new ApiError('id, name and phone are required', 400));
     }
 
-    body.lastModified = new Date().toISOString();
+    // Set default values if not provided (matching frontend behavior)
+    const customerData = {
+      id: body.id,
+      name: body.name,
+      phone: body.phone,
+      email: body.email || null,
+      joinDate: body.joinDate || new Date().toISOString(),
+      type: body.type || null,
+      governorate: body.governorate || null,
+      streetAddress: body.streetAddress || null,
+      classification: body.classification || null,
+      points: body.points !== undefined ? body.points : 0,
+      totalPurchases: body.totalPurchases !== undefined ? body.totalPurchases : 0,
+      lastPurchaseDate: body.lastPurchaseDate || null,
+      hasBadReputation: body.hasBadReputation !== undefined ? body.hasBadReputation : false,
+      source: body.source || null,
+      totalPointsEarned: body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
+      totalPointsUsed: body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
+      purchaseCount: body.purchaseCount !== undefined ? body.purchaseCount : 0,
+      log: body.log || [],
+      impressions: body.impressions || [],
+      primaryBranchId: body.primaryBranchId || null,
+      lastModified: new Date().toISOString(),
+    };
 
-    const customer = await Customer.create(body);
+    const customer = await Customer.create(customerData);
     res.status(201).json({ data: customer });
   } catch (error) {
     if (error.code === 11000 && error.keyPattern && error.keyPattern.id) {
@@ -46,23 +70,26 @@ exports.createCustomer = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Update customer
+// Update customer by custom id field
 exports.updateCustomer = asyncHandler(async (req, res, next) => {
   try {
+    const { id } = req.params;
     const body = { ...req.body };
     delete body._id;
+    delete body.id; // Prevent changing the id field
 
-    // pre('save') لا يعمل مع findByIdAndUpdate، لذلك نحدث lastModified هنا
+    // pre('save') لا يعمل مع findOneAndUpdate، لذلك نحدث lastModified هنا
     body.lastModified = new Date().toISOString();
 
-    const customer = await Customer.findByIdAndUpdate(req.params.id, body, {
+    // Search by custom 'id' field, not MongoDB '_id'
+    const customer = await Customer.findOneAndUpdate({ id: id }, body, {
       new: true,
       runValidators: true,
     });
 
     if (!customer) {
       return next(
-        new ApiError(`No customer for this id ${req.params.id}`, 404)
+        new ApiError(`No customer for this id ${id}`, 404)
       );
     }
 
@@ -78,11 +105,12 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Delete customer
+// Delete customer by custom id field
 exports.deleteCustomer = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
-    const customer = await Customer.findByIdAndDelete(id);
+    // Search by custom 'id' field, not MongoDB '_id'
+    const customer = await Customer.findOneAndDelete({ id: id });
     if (!customer) {
       return next(new ApiError(`No customer for this id ${id}`, 404));
     }
