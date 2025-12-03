@@ -1,4 +1,5 @@
 const asyncHandler = require('express-async-handler');
+const mongoose = require('mongoose');
 const ApiError = require('../utils/apiError');
 
 const {
@@ -77,7 +78,14 @@ exports.getAllComplaints = asyncHandler(async (req, res, next) => {
 
 // GET ONE
 exports.getComplaintById = asyncHandler(async (req, res, next) => {
-  const complaint = await getComplaintByIdService(req.params.id);
+  const { id } = req.params;
+
+  // Validate that id is a valid MongoDB ObjectId
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return next(new ApiError('Invalid complaint ID format', 400));
+  }
+
+  const complaint = await getComplaintByIdService(id);
 
   if (!complaint) {
     return next(new ApiError('Complaint not found', 404));
@@ -91,6 +99,13 @@ exports.getComplaintById = asyncHandler(async (req, res, next) => {
 
 // UPDATE
 exports.updateComplaint = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  // Validate that id is a valid MongoDB ObjectId
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return next(new ApiError('Invalid complaint ID format', 400));
+  }
+
   const allowedStatus = Object.values(ComplaintStatus);
   const allowedPriority = Object.values(ComplaintPriority);
   const allowedChannel = Object.values(ComplaintChannel);
@@ -107,7 +122,7 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
     return next(new ApiError('Invalid channel value', 400));
   }
 
-  const complaint = await updateComplaintService(req.params.id, req.body);
+  const complaint = await updateComplaintService(id, req.body);
 
   if (!complaint) {
     return next(new ApiError('Complaint not found', 404));
@@ -121,7 +136,14 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
 
 // DELETE
 exports.deleteComplaint = asyncHandler(async (req, res, next) => {
-  const complaint = await deleteComplaintService(req.params.id);
+  const { id } = req.params;
+
+  // Validate that id is a valid MongoDB ObjectId
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return next(new ApiError('Invalid complaint ID format', 400));
+  }
+
+  const complaint = await deleteComplaintService(id);
 
   if (!complaint) {
     return next(new ApiError('Complaint not found', 404));
