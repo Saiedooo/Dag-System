@@ -153,9 +153,8 @@ const customerSchema = new mongoose.Schema(
 );
 
 // Auto-update lastModified
-customerSchema.pre('save', function (next) {
+customerSchema.pre('save', async function () {
   this.lastModified = new Date().toISOString();
-  next();
 });
 
 module.exports = mongoose.model('Customer', customerSchema);
@@ -163,5 +162,3 @@ module.exports.CustomerType = CustomerType;
 module.exports.CustomerClassification = CustomerClassification;
 module.exports.OrderStatus = OrderStatus;
 module.exports.DiscoveryChannel = DiscoveryChannel;
-
-
