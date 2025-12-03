@@ -43,8 +43,9 @@ const userSchema = new mongoose.Schema(
         'AccountsManager',
         'GeneralManager',
         'Admin',
+        'customer',
       ],
-      default: 'Staff',
+      default: 'customer',
     },
     points: {
       type: Number,
