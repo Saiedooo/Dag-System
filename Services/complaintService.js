@@ -46,8 +46,9 @@ const deleteComplaintService = async (id) => {
 
 // CREATE
 exports.createComplaint = asyncHandler(async (req, res, next) => {
-  const data = req.body;
+  const data = { ...req.body };
 
+  // Validate required fields
   if (
     !data.customerName ||
     !data.customerEmail ||
@@ -56,6 +57,24 @@ exports.createComplaint = asyncHandler(async (req, res, next) => {
   ) {
     return next(new ApiError('Missing required fields', 400));
   }
+
+  // Ensure complaintText is not empty
+  if (data.complaintText.trim() === '') {
+    return next(new ApiError('complaintText cannot be empty', 400));
+  }
+
+  // Map complaintText to description for storage
+  if (data.complaintText && !data.description) {
+    data.description = data.complaintText;
+  }
+
+  // Set dateOpened if not provided
+  if (!data.dateOpened) {
+    data.dateOpened = new Date().toISOString();
+  }
+
+  // Set lastModified
+  data.lastModified = new Date().toISOString();
 
   const complaint = await createComplaintService(data);
 
@@ -106,23 +125,34 @@ exports.updateComplaint = asyncHandler(async (req, res, next) => {
     return next(new ApiError('Invalid complaint ID format', 400));
   }
 
+  const data = { ...req.body };
+
+  // Map complaintText to description if provided
+  if (data.complaintText !== undefined) {
+    data.description = data.complaintText;
+  }
+
+  // Validate enum values
   const allowedStatus = Object.values(ComplaintStatus);
   const allowedPriority = Object.values(ComplaintPriority);
   const allowedChannel = Object.values(ComplaintChannel);
 
-  if (req.body.status && !allowedStatus.includes(req.body.status)) {
+  if (data.status && !allowedStatus.includes(data.status)) {
     return next(new ApiError('Invalid status value', 400));
   }
 
-  if (req.body.priority && !allowedPriority.includes(req.body.priority)) {
+  if (data.priority && !allowedPriority.includes(data.priority)) {
     return next(new ApiError('Invalid priority value', 400));
   }
 
-  if (req.body.channel && !allowedChannel.includes(req.body.channel)) {
+  if (data.channel && !allowedChannel.includes(data.channel)) {
     return next(new ApiError('Invalid channel value', 400));
   }
 
-  const complaint = await updateComplaintService(id, req.body);
+  // Update lastModified
+  data.lastModified = new Date().toISOString();
+
+  const complaint = await updateComplaintService(id, data);
 
   if (!complaint) {
     return next(new ApiError('Complaint not found', 404));

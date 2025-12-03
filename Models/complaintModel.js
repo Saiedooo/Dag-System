@@ -39,6 +39,9 @@ const complaintSchema = new mongoose.Schema(
     complaintId: { type: String, unique: true },
     customerId: { type: String },
     customerName: { type: String },
+    customerEmail: { type: String },
+    customerPhone: { type: String },
+    complaintText: { type: String }, // For creation, will be mapped to description
     dateOpened: { type: String },
     channel: { type: String, enum: Object.values(ComplaintChannel) },
     type: { type: String },
@@ -65,7 +68,7 @@ const complaintSchema = new mongoose.Schema(
   }
 );
 
-// Remove "customer" field before validation
+// Remove "customer" field before validation and map complaintText to description
 complaintSchema.pre('validate', function (next) {
   if (this.customer !== undefined) {
     if (!this.customerId && this.customer) {
@@ -73,6 +76,12 @@ complaintSchema.pre('validate', function (next) {
     }
     delete this.customer;
   }
+  
+  // Map complaintText to description if complaintText exists and description doesn't
+  if (this.complaintText && !this.description) {
+    this.description = this.complaintText;
+  }
+  
   next();
 });
 
