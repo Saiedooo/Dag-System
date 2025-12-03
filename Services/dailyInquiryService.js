@@ -4,7 +4,7 @@ const DailyInquiry = require('../Models/dailyInquiryModel');
 
 // Get all daily inquiries
 exports.getAllDailyInquiries = asyncHandler(async (req, res) => {
-  const inquiries = await DailyInquiry.find({});
+  const inquiries = await DailyInquiry.find({}).lean();
   res.status(200).json({ results: inquiries.length, data: inquiries });
 });
 
@@ -39,6 +39,8 @@ exports.createDailyInquiry = asyncHandler(async (req, res, next) => {
       );
     }
 
+    body.lastModified = new Date().toISOString();
+
     const inquiry = await DailyInquiry.create(body);
     res.status(201).json({ data: inquiry });
   } catch (error) {
@@ -66,14 +68,12 @@ exports.updateDailyInquiry = asyncHandler(async (req, res, next) => {
     const body = { ...req.body };
     delete body._id;
 
-    const inquiry = await DailyInquiry.findByIdAndUpdate(
-      req.params.id,
-      body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    body.lastModified = new Date().toISOString();
+
+    const inquiry = await DailyInquiry.findByIdAndUpdate(req.params.id, body, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!inquiry) {
       return next(
@@ -113,5 +113,3 @@ exports.deleteDailyInquiry = asyncHandler(async (req, res, next) => {
     );
   }
 });
-
-

@@ -4,7 +4,7 @@ const Customer = require('../Models/customerModel');
 
 // Get all customers
 exports.getAllCustomers = asyncHandler(async (req, res) => {
-  const customers = await Customer.find({});
+  const customers = await Customer.find({}).lean();
   res.status(200).json({ results: customers.length, data: customers });
 });
 
@@ -21,12 +21,14 @@ exports.getCustomerById = asyncHandler(async (req, res, next) => {
 // Create new customer
 exports.createCustomer = asyncHandler(async (req, res, next) => {
   try {
+    // يدعم JSON و FormData لأن multer يملأ req.body أيضاً
     const body = { ...req.body };
 
-    // Basic validation
     if (!body.id || !body.name || !body.phone) {
       return next(new ApiError('id, name and phone are required', 400));
     }
+
+    body.lastModified = new Date().toISOString();
 
     const customer = await Customer.create(body);
     res.status(201).json({ data: customer });
@@ -49,6 +51,9 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
     delete body._id;
+
+    // pre('save') لا يعمل مع findByIdAndUpdate، لذلك نحدث lastModified هنا
+    body.lastModified = new Date().toISOString();
 
     const customer = await Customer.findByIdAndUpdate(req.params.id, body, {
       new: true,
@@ -86,5 +91,3 @@ exports.deleteCustomer = asyncHandler(async (req, res, next) => {
     return next(new ApiError(error.message || 'Error deleting customer', 500));
   }
 });
-
-
