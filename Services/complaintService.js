@@ -13,7 +13,12 @@ const {
 
 // Create Complaint
 const createComplaintService = async (data) => {
-  return await Complaint.create(data);
+  try {
+    return await Complaint.create(data);
+  } catch (error) {
+    // Re-throw the error so asyncHandler can catch it
+    throw error;
+  }
 };
 
 // Get All Complaints
@@ -45,48 +50,68 @@ const deleteComplaintService = async (id) => {
 // ========== CONTROLLER ==========
 
 // CREATE
-exports.createComplaint = asyncHandler(async (req, res, next) => {
-  const data = { ...req.body };
+exports.createComplaint = async (req, res, next) => {
+  try {
+    const data = { ...req.body };
 
-  // Validate required fields
-  if (
-    !data.customerName ||
-    !data.customerEmail ||
-    !data.customerPhone ||
-    !data.complaintText
-  ) {
-    return next(new ApiError('Missing required fields', 400));
+    // Validate required fields
+    if (
+      !data.customerName ||
+      !data.customerEmail ||
+      !data.customerPhone ||
+      !data.complaintText
+    ) {
+      return next(new ApiError('Missing required fields', 400));
+    }
+
+    // Ensure complaintText is not empty
+    if (
+      typeof data.complaintText === 'string' &&
+      data.complaintText.trim() === ''
+    ) {
+      return next(new ApiError('complaintText cannot be empty', 400));
+    }
+
+    // Map complaintText to description for storage
+    if (data.complaintText && !data.description) {
+      data.description = data.complaintText;
+    }
+
+    // Set dateOpened if not provided
+    if (!data.dateOpened) {
+      data.dateOpened = new Date().toISOString();
+    }
+
+    // Set lastModified
+    data.lastModified = new Date().toISOString();
+
+    // Create complaint
+    const complaint = await createComplaintService(data);
+
+    res.status(201).json({
+      status: 'success',
+      data: complaint,
+    });
+  } catch (error) {
+    // Handle MongoDB validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((e) => e.message);
+      return next(
+        new ApiError(`Validation failed: ${messages.join(', ')}`, 400)
+      );
+    }
+
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0];
+      return next(new ApiError(`${field} already exists`, 400));
+    }
+
+    // For other errors, pass to error handler
+    console.error('[createComplaint] Error:', error);
+    return next(new ApiError(error.message || 'Error creating complaint', 500));
   }
-
-  // Ensure complaintText is not empty
-  if (
-    typeof data.complaintText === 'string' &&
-    data.complaintText.trim() === ''
-  ) {
-    return next(new ApiError('complaintText cannot be empty', 400));
-  }
-
-  // Map complaintText to description for storage
-  if (data.complaintText && !data.description) {
-    data.description = data.complaintText;
-  }
-
-  // Set dateOpened if not provided
-  if (!data.dateOpened) {
-    data.dateOpened = new Date().toISOString();
-  }
-
-  // Set lastModified
-  data.lastModified = new Date().toISOString();
-
-  // Create complaint - asyncHandler will catch any errors automatically
-  const complaint = await createComplaintService(data);
-
-  res.status(201).json({
-    status: 'success',
-    data: complaint,
-  });
-});
+};
 
 // GET ALL
 exports.getAllComplaints = asyncHandler(async (req, res, next) => {
