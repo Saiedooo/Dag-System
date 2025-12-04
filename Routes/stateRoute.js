@@ -109,11 +109,17 @@ router.get(
 
       // Build response object
       // Priority: MongoDB customers > JSON customers > empty array
-      const response = {
+      // Merge: Use MongoDB customers if available, otherwise use JSON customers
+      const mergedData = {
         ...fileData, // Other data from JSON file (if exists)
         ...appState, // Any other state data (if needed)
-        customers: formattedCustomers, // Customers from MongoDB or JSON fallback
+        customers:
+          formattedCustomers.length > 0
+            ? formattedCustomers
+            : fileData.customers || [], // Use MongoDB customers first, then JSON fallback
       };
+
+      const response = mergedData;
 
       console.log(`[GET /api/data] ✅ Response ready:`, {
         customersSource: customersSource,
