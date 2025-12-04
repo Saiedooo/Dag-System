@@ -8,6 +8,7 @@ const {
 } = require('../Models/complaintModel');
 
 // ========== SERVICE FUNCTIONS ==========
+
 const createComplaintService = async (data) => {
   return await Complaint.create(data);
 };
@@ -36,10 +37,22 @@ const deleteComplaintService = async (id) => {
 
 // ========== CONTROLLER ==========
 
-// CREATE - بدون asyncHandler
+// CREATE - بدون asyncHandler (الحل النهائي)
 exports.createComplaint = async (req, res) => {
   try {
     const data = { ...req.body };
+
+    console.log('=== CREATE COMPLAINT REQUEST ===');
+    console.log('Received data:', {
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      hasComplaintText: !!data.complaintText,
+      complaintTextLength: data.complaintText?.length || 0,
+      type: data.type,
+      status: data.status,
+      priority: data.priority,
+    });
 
     // Validate required fields
     if (
@@ -48,6 +61,7 @@ exports.createComplaint = async (req, res) => {
       !data.customerPhone ||
       !data.complaintText
     ) {
+      console.log('Validation failed: Missing required fields');
       return res.status(400).json({
         status: 'error',
         message: 'Missing required fields',
@@ -55,7 +69,11 @@ exports.createComplaint = async (req, res) => {
     }
 
     // Ensure complaintText is not empty
-    if (data.complaintText.trim() === '') {
+    if (
+      typeof data.complaintText === 'string' &&
+      data.complaintText.trim() === ''
+    ) {
+      console.log('Validation failed: complaintText is empty');
       return res.status(400).json({
         status: 'error',
         message: 'complaintText cannot be empty',
@@ -75,14 +93,26 @@ exports.createComplaint = async (req, res) => {
     // Set lastModified
     data.lastModified = new Date().toISOString();
 
-    const complaint = await createComplaintService(data);
+    // Clean up data - remove undefined fields
+    const cleanData = {};
+    Object.keys(data).forEach((key) => {
+      if (data[key] !== undefined) {
+        cleanData[key] = data[key];
+      }
+    });
+
+    console.log('Creating complaint with clean data...');
+    const complaint = await createComplaintService(cleanData);
+
+    console.log('✅ Complaint created successfully:', complaint._id);
 
     res.status(201).json({
       status: 'success',
       data: complaint,
     });
   } catch (error) {
-    console.error('Error creating complaint:', error);
+    console.error('❌ Error creating complaint:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Error creating complaint',
