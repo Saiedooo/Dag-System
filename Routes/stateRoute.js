@@ -7,12 +7,18 @@ const router = express.Router();
 let appState = {};
 
 // GET /api/data
-// Returns aggregated state needed by the frontend (currently: customers list)
+// Returns aggregated state needed by the frontend from MongoDB
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     try {
+      console.log('[GET /api/data] Starting to fetch data from MongoDB...');
+
+      // Fetch customers from MongoDB (NOT from JSON file)
       const customers = await Customer.find().lean();
+      console.log(
+        `[GET /api/data] ✅ Fetched ${customers.length} customers from MongoDB`
+      );
 
       // Format customers to match frontend expectations
       const formattedCustomers = customers.map((customer) => ({
@@ -41,9 +47,8 @@ router.get(
       }));
 
       // Log for debugging
-      console.log(`[GET /api/data] Found ${customers.length} customers in DB`);
       console.log(
-        `[GET /api/data] Returning ${formattedCustomers.length} formatted customers`
+        `[GET /api/data] ✅ Formatted ${formattedCustomers.length} customers`
       );
       if (formattedCustomers.length > 0) {
         console.log(`[GET /api/data] Sample customer:`, {
@@ -53,25 +58,35 @@ router.get(
         });
       }
 
-      // Return data with customers array
+      // Build response object - customers from MongoDB, other data from appState if needed
       const response = {
-        ...appState,
-        customers: formattedCustomers,
+        ...appState, // Any other state data (if needed)
+        customers: formattedCustomers, // Customers from MongoDB
       };
 
-      console.log(`[GET /api/data] Response structure:`, {
+      console.log(`[GET /api/data] ✅ Response ready:`, {
         hasCustomers: !!response.customers,
         customersCount: response.customers?.length || 0,
+        responseKeys: Object.keys(response),
       });
 
-      res.json(response);
+      // Send response
+      res.status(200).json(response);
+      console.log(`[GET /api/data] ✅ Response sent successfully`);
     } catch (error) {
-      console.error('[GET /api/data] Error:', error);
+      console.error('[GET /api/data] ❌ Error fetching from MongoDB:', error);
+      console.error('[GET /api/data] Error details:', {
+        message: error.message,
+        stack: error.stack,
+      });
+
       // Return empty array on error instead of crashing
-      res.json({
+      const errorResponse = {
         ...appState,
         customers: [],
-      });
+        error: 'Failed to fetch customers from database',
+      };
+      res.status(500).json(errorResponse);
     }
   })
 );
