@@ -9,8 +9,8 @@ const {
 
 const router = express.Router();
 
-// router.use(authService.protect);
-// router.use(authService.allowedTo('admin', 'manager'));
+// تأكد إن الـ routes مش بتستخدم asyncHandler
+// كل الـ controllers هتتعامل مع الـ errors بنفسها
 
 router.route('/').get(getAllComplaints).post(createComplaint);
 
