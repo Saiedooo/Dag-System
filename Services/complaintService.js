@@ -1,7 +1,5 @@
-const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
 const ApiError = require('../utils/apiError');
-
 const {
   Complaint,
   ComplaintStatus,
@@ -10,29 +8,19 @@ const {
 } = require('../Models/complaintModel');
 
 // ========== SERVICE FUNCTIONS ==========
-
-// Create Complaint
 const createComplaintService = async (data) => {
-  try {
-    return await Complaint.create(data);
-  } catch (error) {
-    // Re-throw the error so asyncHandler can catch it
-    throw error;
-  }
+  return await Complaint.create(data);
 };
 
-// Get All Complaints
 const getAllComplaintsService = async () => {
   return await Complaint.find();
 };
 
-// Get Single Complaint
 const getComplaintByIdService = async (id) => {
   const complaint = await Complaint.findById(id);
   return complaint;
 };
 
-// Update Complaint
 const updateComplaintService = async (id, data) => {
   const complaint = await Complaint.findByIdAndUpdate(id, data, {
     new: true,
@@ -41,7 +29,6 @@ const updateComplaintService = async (id, data) => {
   return complaint;
 };
 
-// Delete Complaint
 const deleteComplaintService = async (id) => {
   const complaint = await Complaint.findByIdAndDelete(id);
   return complaint;
@@ -49,8 +36,8 @@ const deleteComplaintService = async (id) => {
 
 // ========== CONTROLLER ==========
 
-// CREATE
-exports.createComplaint = async (req, res, next) => {
+// CREATE - بدون asyncHandler
+exports.createComplaint = async (req, res) => {
   try {
     const data = { ...req.body };
 
@@ -61,15 +48,18 @@ exports.createComplaint = async (req, res, next) => {
       !data.customerPhone ||
       !data.complaintText
     ) {
-      return next(new ApiError('Missing required fields', 400));
+      return res.status(400).json({
+        status: 'error',
+        message: 'Missing required fields',
+      });
     }
 
     // Ensure complaintText is not empty
-    if (
-      typeof data.complaintText === 'string' &&
-      data.complaintText.trim() === ''
-    ) {
-      return next(new ApiError('complaintText cannot be empty', 400));
+    if (data.complaintText.trim() === '') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'complaintText cannot be empty',
+      });
     }
 
     // Map complaintText to description for storage
@@ -85,7 +75,6 @@ exports.createComplaint = async (req, res, next) => {
     // Set lastModified
     data.lastModified = new Date().toISOString();
 
-    // Create complaint
     const complaint = await createComplaintService(data);
 
     res.status(201).json({
@@ -93,123 +82,166 @@ exports.createComplaint = async (req, res, next) => {
       data: complaint,
     });
   } catch (error) {
-    // Handle MongoDB validation errors
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((e) => e.message);
-      return next(
-        new ApiError(`Validation failed: ${messages.join(', ')}`, 400)
-      );
-    }
-
-    // Handle duplicate key errors
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern || {})[0];
-      return next(new ApiError(`${field} already exists`, 400));
-    }
-
-    // For other errors, pass to error handler
-    console.error('[createComplaint] Error:', error);
-    return next(new ApiError(error.message || 'Error creating complaint', 500));
+    console.error('Error creating complaint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error creating complaint',
+    });
   }
 };
 
-// GET ALL
-exports.getAllComplaints = asyncHandler(async (req, res, next) => {
-  const complaints = await getAllComplaintsService();
-
-  res.status(200).json({
-    status: 'success',
-    results: complaints.length,
-    data: complaints,
-  });
-});
-
-// GET ONE
-exports.getComplaintById = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  // Validate that id is a valid MongoDB ObjectId
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return next(new ApiError('Invalid complaint ID format', 400));
+// GET ALL - بدون asyncHandler
+exports.getAllComplaints = async (req, res) => {
+  try {
+    const complaints = await getAllComplaintsService();
+    res.status(200).json({
+      status: 'success',
+      results: complaints.length,
+      data: complaints,
+    });
+  } catch (error) {
+    console.error('Error fetching complaints:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error fetching complaints',
+    });
   }
+};
 
-  const complaint = await getComplaintByIdService(id);
+// GET ONE - بدون asyncHandler
+exports.getComplaintById = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  if (!complaint) {
-    return next(new ApiError('Complaint not found', 404));
+    // Validate that id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid complaint ID format',
+      });
+    }
+
+    const complaint = await getComplaintByIdService(id);
+    if (!complaint) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Complaint not found',
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: complaint,
+    });
+  } catch (error) {
+    console.error('Error fetching complaint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error fetching complaint',
+    });
   }
+};
 
-  res.status(200).json({
-    status: 'success',
-    data: complaint,
-  });
-});
+// UPDATE - بدون asyncHandler
+exports.updateComplaint = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-// UPDATE
-exports.updateComplaint = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
+    // Validate that id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid complaint ID format',
+      });
+    }
 
-  // Validate that id is a valid MongoDB ObjectId
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return next(new ApiError('Invalid complaint ID format', 400));
+    const data = { ...req.body };
+
+    // Map complaintText to description if provided
+    if (data.complaintText !== undefined) {
+      data.description = data.complaintText;
+    }
+
+    // Validate enum values
+    const allowedStatus = Object.values(ComplaintStatus);
+    const allowedPriority = Object.values(ComplaintPriority);
+    const allowedChannel = Object.values(ComplaintChannel);
+
+    if (data.status && !allowedStatus.includes(data.status)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid status value',
+      });
+    }
+
+    if (data.priority && !allowedPriority.includes(data.priority)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid priority value',
+      });
+    }
+
+    if (data.channel && !allowedChannel.includes(data.channel)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid channel value',
+      });
+    }
+
+    // Update lastModified
+    data.lastModified = new Date().toISOString();
+
+    const complaint = await updateComplaintService(id, data);
+    if (!complaint) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Complaint not found',
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: complaint,
+    });
+  } catch (error) {
+    console.error('Error updating complaint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error updating complaint',
+    });
   }
+};
 
-  const data = { ...req.body };
+// DELETE - بدون asyncHandler
+exports.deleteComplaint = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  // Map complaintText to description if provided
-  if (data.complaintText !== undefined) {
-    data.description = data.complaintText;
+    // Validate that id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid complaint ID format',
+      });
+    }
+
+    const complaint = await deleteComplaintService(id);
+    if (!complaint) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Complaint not found',
+      });
+    }
+
+    res.status(204).json({
+      status: 'success',
+      message: 'Complaint deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting complaint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error deleting complaint',
+    });
   }
-
-  // Validate enum values
-  const allowedStatus = Object.values(ComplaintStatus);
-  const allowedPriority = Object.values(ComplaintPriority);
-  const allowedChannel = Object.values(ComplaintChannel);
-
-  if (data.status && !allowedStatus.includes(data.status)) {
-    return next(new ApiError('Invalid status value', 400));
-  }
-
-  if (data.priority && !allowedPriority.includes(data.priority)) {
-    return next(new ApiError('Invalid priority value', 400));
-  }
-
-  if (data.channel && !allowedChannel.includes(data.channel)) {
-    return next(new ApiError('Invalid channel value', 400));
-  }
-
-  // Update lastModified
-  data.lastModified = new Date().toISOString();
-
-  const complaint = await updateComplaintService(id, data);
-
-  if (!complaint) {
-    return next(new ApiError('Complaint not found', 404));
-  }
-
-  res.status(200).json({
-    status: 'success',
-    data: complaint,
-  });
-});
-
-// DELETE
-exports.deleteComplaint = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  // Validate that id is a valid MongoDB ObjectId
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return next(new ApiError('Invalid complaint ID format', 400));
-  }
-
-  const complaint = await deleteComplaintService(id);
-
-  if (!complaint) {
-    return next(new ApiError('Complaint not found', 404));
-  }
-
-  res.status(204).json({
-    status: 'success',
-    message: 'Complaint deleted successfully',
-  });
-});
+};
