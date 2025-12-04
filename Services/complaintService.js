@@ -10,7 +10,15 @@ const {
 // ========== SERVICE FUNCTIONS ==========
 
 const createComplaintService = async (data) => {
-  return await Complaint.create(data);
+  // Create new complaint instance and save to MongoDB
+  const complaint = new Complaint(data);
+  // Save to MongoDB - this ensures data is persisted permanently
+  await complaint.save();
+  console.log('✅ Complaint saved to MongoDB:', {
+    _id: complaint._id,
+    complaintId: complaint.complaintId,
+  });
+  return complaint;
 };
 
 const getAllComplaintsService = async () => {
@@ -27,6 +35,11 @@ const updateComplaintService = async (id, data) => {
     new: true,
     runValidators: true,
   });
+  // Ensure the update is saved to MongoDB
+  if (complaint) {
+    await complaint.save();
+    console.log('✅ Complaint updated and saved to MongoDB:', complaint._id);
+  }
   return complaint;
 };
 
@@ -102,9 +115,30 @@ exports.createComplaint = async (req, res) => {
     });
 
     console.log('Creating complaint with clean data...');
+    console.log('Clean data keys:', Object.keys(cleanData));
+
+    // Create and save complaint to MongoDB
     const complaint = await createComplaintService(cleanData);
 
-    console.log('✅ Complaint created successfully:', complaint._id);
+    console.log('✅ Complaint created and saved successfully:', {
+      _id: complaint._id,
+      complaintId: complaint.complaintId,
+      customerName: complaint.customerName,
+      customerId: complaint.customerId,
+    });
+
+    // Verify the complaint was saved by fetching it again from MongoDB
+    const verifyComplaint = await Complaint.findById(complaint._id);
+    if (!verifyComplaint) {
+      console.error('❌ WARNING: Complaint was not saved to database!');
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to save complaint to database',
+      });
+    }
+    console.log(
+      '✅ Verified: Complaint is saved in MongoDB and can be retrieved'
+    );
 
     res.status(201).json({
       status: 'success',
@@ -123,14 +157,36 @@ exports.createComplaint = async (req, res) => {
 // GET ALL - بدون asyncHandler
 exports.getAllComplaints = async (req, res) => {
   try {
+    console.log('=== FETCHING ALL COMPLAINTS FROM MONGODB ===');
+
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ MongoDB is not connected!');
+      return res.status(500).json({
+        status: 'error',
+        message: 'Database connection is not ready',
+      });
+    }
+
     const complaints = await getAllComplaintsService();
+    console.log(`✅ Fetched ${complaints.length} complaints from MongoDB`);
+
+    if (complaints.length > 0) {
+      console.log('Sample complaint:', {
+        _id: complaints[0]._id,
+        complaintId: complaints[0].complaintId,
+        customerName: complaints[0].customerName,
+      });
+    }
+
     res.status(200).json({
       status: 'success',
       results: complaints.length,
       data: complaints,
     });
   } catch (error) {
-    console.error('Error fetching complaints:', error);
+    console.error('❌ Error fetching complaints:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Error fetching complaints',

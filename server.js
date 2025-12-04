@@ -37,6 +37,9 @@ if (process.env.NODE_ENV === 'development') {
   console.log(`mode: ${process.env.NODE_ENV}`);
 }
 
+// connect to database FIRST before routes
+dbConnection();
+
 app.use('/api/data', stateRoute);
 app.use('/api/v1/users', userRoute);
 app.use('/api/v1/auth', authRoute);
@@ -44,9 +47,6 @@ app.use('/api/v1/complaint', complaintRoute);
 app.use('/api/v1/invoices', invoiceRoute);
 app.use('/api/v1/customers', customerRoute);
 app.use('/api/v1/daily-inquiries', dailyInquiryRoute);
-
-// connect to database
-dbConnection();
 
 app.use(globalError);
 

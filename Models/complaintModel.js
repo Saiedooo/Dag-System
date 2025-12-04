@@ -69,7 +69,7 @@ const complaintSchema = new mongoose.Schema(
 );
 
 // Remove "customer" field before validation and map complaintText to description
-complaintSchema.pre('validate', function (next) {
+complaintSchema.pre('validate', async function () {
   if (this.customer !== undefined) {
     if (!this.customerId && this.customer) {
       this.customerId = String(this.customer);
@@ -81,23 +81,19 @@ complaintSchema.pre('validate', function (next) {
   if (this.complaintText && !this.description) {
     this.description = this.complaintText;
   }
-  
-  next();
 });
 
 // Auto-generate complaintId if missing
-complaintSchema.pre('save', async function (next) {
+complaintSchema.pre('save', async function () {
   if (!this.complaintId) {
     const count = await this.constructor.countDocuments();
     this.complaintId = `COMP-${Date.now()}-${count + 1}`;
   }
-  next();
 });
 
 // Update lastModified
-complaintSchema.pre('save', function (next) {
+complaintSchema.pre('save', async function () {
   this.lastModified = new Date().toISOString();
-  next();
 });
 
 const Complaint = mongoose.model('Complaint', complaintSchema);
