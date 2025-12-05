@@ -50,10 +50,15 @@ app.use('/api/v1/daily-inquiries', dailyInquiryRoute);
 
 app.use(globalError);
 
-const PORT = process.env.PORT || 8000;
-const server = app.listen(PORT, () => {
-  console.log(`App running on port ${PORT}`);
-});
+// On Vercel (@vercel/node) we should export the app without calling listen.
+// Locally we still start the server for development.
+let server;
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 8000;
+  server = app.listen(PORT, () => {
+    console.log(`App running on port ${PORT}`);
+  });
+}
 
 // Handle rejection outside express
 process.on('unhandledRejection', (err) => {
@@ -69,3 +74,6 @@ process.on('unhandledRejection', (err) => {
     process.exit(1);
   }
 });
+
+// Export the app for Vercel serverless
+module.exports = app;
