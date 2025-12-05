@@ -1,12 +1,14 @@
 class ApiError extends Error {
-  constructor(message, statusCode) {
+  constructor(message = 'Internal Server Error', statusCode = 500) {
     super(message);
-    this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+    this.statusCode = statusCode || 500;
+    this.status = `${this.statusCode}`.startsWith('4') ? 'fail' : 'error';
     this.isOperational = true;
-    
-    // Capture stack trace
-    Error.captureStackTrace(this, this.constructor);
+
+    // Capture stack trace when available (guards older runtimes)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 }
 
