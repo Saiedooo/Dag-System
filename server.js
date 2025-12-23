@@ -24,13 +24,20 @@ process.on('uncaughtException', (err) => {
 // express app
 const app = express();
 
+// Enable CORS before other middleware
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
+}));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
+
 // parse JSON bodies
 app.use(express.json());
-
-// Enable other domains to access your application
-app.use(cors({ origin: '*' }));
-// CORS middleware will handle OPTIONS automatically for allowed origins,
-// so we don't need a separate app.options wildcard route here.
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
