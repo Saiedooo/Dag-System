@@ -33,9 +33,6 @@ app.use(cors({
   exposedHeaders: ['Authorization']
 }));
 
-// Handle preflight requests explicitly
-app.options('*', cors());
-
 // parse JSON bodies
 app.use(express.json());
 
