@@ -25,19 +25,22 @@ process.on('uncaughtException', (err) => {
 const app = express();
 
 // Enable CORS before other middleware
-app.use(
-  cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'http://localhost:5174',
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Authorization'],
-  })
-);
+// app.use(
+//   cors({
+//     origin: [
+//       'http://localhost:5173',
+//       'http://localhost:3000',
+//       'http://localhost:5174',
+//     ],
+//     credentials: true,
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+//     exposedHeaders: ['Authorization'],
+//   })
+// );
+
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 // parse JSON bodies
 app.use(express.json());
