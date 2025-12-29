@@ -1,4 +1,5 @@
 const express = require('express');
+const ensureDbConnection = require('../middleware/dbConnectionMiddleware');
 
 const {
   getAllDailyInquiries,
@@ -11,6 +12,9 @@ const {
 const authService = require('../Services/authServices');
 
 const router = express.Router();
+
+// Ensure database connection before handling daily inquiry requests
+router.use(ensureDbConnection);
 
 // router.use(authService.protect);
 // router.use(authService.allowedTo('admin', 'manager'));

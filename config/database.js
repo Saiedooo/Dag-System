@@ -7,20 +7,31 @@ const dbConnection = async () => {
     process.exit(1);
   }
 
+  // Check if already connected (important for Vercel serverless)
+  if (mongoose.connection.readyState === 1) {
+    console.log('✅ MongoDB already connected');
+    return;
+  }
+
   try {
     const conn = await mongoose.connect(dbUrl, {
-      // Ensure connection options for persistent storage
-      bufferCommands: false,
+      // Serverless-friendly connection options
+      bufferCommands: true, // Enable buffering for serverless (commands wait for connection)
       maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
     console.log(`✅ Database Connected: ${conn.connection.host}`);
     console.log(`✅ Database Name: ${conn.connection.name}`);
-    
+
     // Verify connection is ready
     if (mongoose.connection.readyState === 1) {
       console.log('✅ MongoDB connection is ready');
     } else {
-      console.warn('⚠️ MongoDB connection state:', mongoose.connection.readyState);
+      console.warn(
+        '⚠️ MongoDB connection state:',
+        mongoose.connection.readyState
+      );
     }
   } catch (err) {
     console.error('❌ Database Connection Error:', err.message || err);

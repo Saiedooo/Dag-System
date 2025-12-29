@@ -1,10 +1,14 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const ensureDbConnection = require('../middleware/dbConnectionMiddleware');
 const Customer = require('../Models/customerModel');
 const User = require('../Models/UserModel');
 
 const router = express.Router();
+
+// Ensure database connection before handling state requests
+router.use(ensureDbConnection);
 
 // Path to JSON fallback file (optional)
 const DB_PATH = path.join(__dirname, '..', 'db.json');

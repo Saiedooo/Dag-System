@@ -1,4 +1,5 @@
 const express = require('express');
+const ensureDbConnection = require('../middleware/dbConnectionMiddleware');
 
 const {
   getAllUsers,
@@ -18,6 +19,9 @@ const {
 const authService = require('../Services/authServices');
 
 const router = express.Router();
+
+// Ensure database connection before handling user requests
+router.use(ensureDbConnection);
 
 // router.use(authService.protect);
 

@@ -55,7 +55,13 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // connect to database FIRST before routes
-dbConnection();
+// Note: For Vercel serverless, connection is cached and reused
+dbConnection().catch((err) => {
+  console.error('Failed to connect to database:', err);
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
+});
 
 app.use('/api/data', stateRoute);
 app.use('/api/v1/users', userRoute);

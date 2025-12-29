@@ -165,24 +165,30 @@ exports.getAllComplaints = async (req, res) => {
       return res.status(500).json({
         status: 'error',
         message: 'Database connection is not ready',
+        results: 0,
+        data: [], // Always return an array for frontend compatibility
       });
     }
 
     const complaints = await getAllComplaintsService();
-    console.log(`✅ Fetched ${complaints.length} complaints from MongoDB`);
+    
+    // Ensure complaints is always an array
+    const complaintsArray = Array.isArray(complaints) ? complaints : [];
+    
+    console.log(`✅ Fetched ${complaintsArray.length} complaints from MongoDB`);
 
-    if (complaints.length > 0) {
+    if (complaintsArray.length > 0) {
       console.log('Sample complaint:', {
-        _id: complaints[0]._id,
-        complaintId: complaints[0].complaintId,
-        customerName: complaints[0].customerName,
+        _id: complaintsArray[0]._id,
+        complaintId: complaintsArray[0].complaintId,
+        customerName: complaintsArray[0].customerName,
       });
     }
 
     res.status(200).json({
       status: 'success',
-      results: complaints.length,
-      data: complaints,
+      results: complaintsArray.length,
+      data: complaintsArray,
     });
   } catch (error) {
     console.error('❌ Error fetching complaints:', error);
@@ -190,6 +196,8 @@ exports.getAllComplaints = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message || 'Error fetching complaints',
+      results: 0,
+      data: [], // Always return an array for frontend compatibility
     });
   }
 };
