@@ -53,6 +53,26 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
 });
 
 exports.createUser = asyncHandler(async (req, res, next) => {
+  // Ensure mongoose bufferCommands is enabled
+  const mongoose = require('mongoose');
+  mongoose.set('bufferCommands', true);
+
+  // Double-check connection is ready
+  if (mongoose.connection.readyState !== 1) {
+    // Wait for connection (up to 5 seconds)
+    let attempts = 0;
+    while (mongoose.connection.readyState !== 1 && attempts < 50) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      return next(
+        new ApiError('Database connection is not ready. Please try again.', 503)
+      );
+    }
+  }
+
   const newDoc = await userModel.create(req.body);
   res.status(201).json({ data: newDoc });
 });

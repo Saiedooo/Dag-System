@@ -7,6 +7,9 @@ const dbConnection = require('../config/database');
  */
 const ensureDbConnection = async (req, res, next) => {
   try {
+    // Ensure bufferCommands is enabled
+    mongoose.set('bufferCommands', true);
+
     // Check if already connected
     if (mongoose.connection.readyState === 1) {
       return next();
@@ -14,9 +17,9 @@ const ensureDbConnection = async (req, res, next) => {
 
     // If connecting (state 2), wait a bit and check again
     if (mongoose.connection.readyState === 2) {
-      // Wait up to 5 seconds for connection to complete
+      // Wait up to 10 seconds for connection to complete
       let attempts = 0;
-      while (mongoose.connection.readyState !== 1 && attempts < 50) {
+      while (mongoose.connection.readyState !== 1 && attempts < 100) {
         await new Promise((resolve) => setTimeout(resolve, 100));
         attempts++;
       }
@@ -28,6 +31,13 @@ const ensureDbConnection = async (req, res, next) => {
 
     // If not connected, try to connect
     await dbConnection();
+
+    // Double-check connection is ready after connecting
+    let attempts = 0;
+    while (mongoose.connection.readyState !== 1 && attempts < 50) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts++;
+    }
 
     // Verify connection is ready
     if (mongoose.connection.readyState === 1) {

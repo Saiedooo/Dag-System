@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+// Set bufferCommands globally before any connection attempts
+mongoose.set('bufferCommands', true);
+mongoose.set('bufferMaxEntries', 0); // Disable buffering limit
+
 const dbConnection = async () => {
   const dbUrl = process.env.DB_URL;
   if (!dbUrl) {
