@@ -462,16 +462,12 @@ exports.createComplaint = async (req, res) => {
     });
 
     // Validate required fields
-    if (
-      !data.customerName ||
-      !data.customerEmail ||
-      !data.customerPhone ||
-      !data.complaintText
-    ) {
+    if (!data.customerName || !data.customerPhone || !data.complaintText) {
       console.log('Validation failed: Missing required fields');
       return res.status(400).json({
         status: 'error',
-        message: 'Missing required fields',
+        message:
+          'Missing required fields: customerName, customerPhone, or complaintText',
       });
     }
 
