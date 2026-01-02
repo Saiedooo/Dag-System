@@ -1,6 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
 const Customer = require('../Models/customerModel');
+const Invoice = require('../Models/invoiceModel');
 
 // Get all customers
 exports.getAllCustomers = asyncHandler(async (req, res) => {
@@ -121,14 +122,11 @@ exports.deleteCustomer = asyncHandler(async (req, res, next) => {
     return next(new ApiError(error.message || 'Error deleting customer', 500));
   }
 });
-
 exports.exportCustomersCSV = asyncHandler(async (req, res) => {
-  // جلب كل العملاء مع الفواتير الخاصة بهم
   const customers = await Customer.find({}).lean();
 
   const csvRows = [];
 
-  // العناوين
   csvRows.push(
     [
       'اسم العميل',
@@ -145,7 +143,6 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   );
 
   for (const customer of customers) {
-    // لو مفيش فواتير في log، نضيف سطر واحد للعميل بدون فاتورة
     if (!customer.log || customer.log.length === 0) {
       csvRows.push(
         [
@@ -164,13 +161,7 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
       continue;
     }
 
-    // لكل فاتورة في log العميل
     for (const logEntry of customer.log) {
-      // لو مفيش منتجات (من الـ invoice الأصلي)، نستخدم التفاصيل
-      const invoiceDetails = logEntry.details || '';
-
-      // نفترض إن التفاصيل فيها اسم المنتج وسعره (مثال: "منتج X - 100 جنيه")
-      // أو نجيب الفاتورة الكاملة من collection Invoice لو موجودة
       let productName = '';
       let productPrice = '';
 
@@ -178,12 +169,12 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
         const fullInvoice = await Invoice.findOne({
           invoiceCode: logEntry.invoiceId,
         }).lean();
+
         if (
           fullInvoice &&
           fullInvoice.products &&
           fullInvoice.products.length > 0
         ) {
-          // لو فيه أكتر من منتج، نضيف سطر لكل منتج
           for (const prod of fullInvoice.products) {
             csvRows.push(
               [
@@ -200,11 +191,11 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
               ].join(',')
             );
           }
-          continue; // خلاص خلصنا الفاتورة دي
+          continue;
         }
       }
 
-      // fallback لو مفيش منتجات مفصلة
+      // fallback
       csvRows.push(
         [
           `"${customer.name || ''}"`,
@@ -213,7 +204,7 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
           customer.governorate || '',
           customer.streetAddress || '',
           logEntry.invoiceId || '',
-          `"${invoiceDetails}"`,
+          `"${logEntry.details || ''}"`,
           logEntry.amount || '',
           new Date(logEntry.date).toLocaleDateString('ar-EG'),
           customer.primaryBranchId || '',
@@ -226,5 +217,5 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
 
   res.header('Content-Type', 'text/csv; charset=utf-8');
   res.attachment('عملاء_ومشترياتهم.csv');
-  res.send('\uFEFF' + csvContent); // BOM لدعم العربي في Excel
+  res.send('\uFEFF' + csvContent);
 });
