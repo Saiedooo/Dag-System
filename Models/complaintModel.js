@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Enums (زي ما هما)
+// Enums
 const ComplaintStatus = {
   Open: 'مفتوحة',
   InProgress: 'قيد المراجعة',
@@ -66,8 +66,8 @@ const complaintSchema = new mongoose.Schema(
   }
 );
 
-// 1. pre('validate') - لازم نستخدم next
-complaintSchema.pre('validate', function (next) {
+// pre('validate') - بدون next (غير async)
+complaintSchema.pre('validate', function () {
   if (this.customer !== undefined) {
     if (!this.customerId && this.customer) {
       this.customerId = String(this.customer);
@@ -78,18 +78,15 @@ complaintSchema.pre('validate', function (next) {
   if (this.complaintText && !this.description) {
     this.description = this.complaintText;
   }
-
-  next(); // مهم جدًا
 });
 
-// 2. pre('save') لتوليد complaintId - لازم نستخدم next
-complaintSchema.pre('save', async function (next) {
+// pre('save') - async بدون next
+complaintSchema.pre('save', async function () {
   if (!this.complaintId) {
     const count = await this.constructor.countDocuments();
     this.complaintId = `COMP-${Date.now()}-${count + 1}`;
   }
   this.lastModified = new Date().toISOString();
-  next(); // مهم جدًا
 });
 
 const Complaint = mongoose.model('Complaint', complaintSchema);
