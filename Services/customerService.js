@@ -41,12 +41,16 @@ exports.createCustomer = asyncHandler(async (req, res, next) => {
       streetAddress: body.streetAddress || null,
       classification: body.classification || null,
       points: body.points !== undefined ? body.points : 0,
-      totalPurchases: body.totalPurchases !== undefined ? body.totalPurchases : 0,
+      totalPurchases:
+        body.totalPurchases !== undefined ? body.totalPurchases : 0,
       lastPurchaseDate: body.lastPurchaseDate || null,
-      hasBadReputation: body.hasBadReputation !== undefined ? body.hasBadReputation : false,
+      hasBadReputation:
+        body.hasBadReputation !== undefined ? body.hasBadReputation : false,
       source: body.source || null,
-      totalPointsEarned: body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
-      totalPointsUsed: body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
+      totalPointsEarned:
+        body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
+      totalPointsUsed:
+        body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
       purchaseCount: body.purchaseCount !== undefined ? body.purchaseCount : 0,
       log: body.log || [],
       impressions: body.impressions || [],
@@ -88,9 +92,7 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
     });
 
     if (!customer) {
-      return next(
-        new ApiError(`No customer for this id ${id}`, 404)
-      );
+      return next(new ApiError(`No customer for this id ${id}`, 404));
     }
 
     res.status(200).json({ data: customer });
@@ -118,4 +120,111 @@ exports.deleteCustomer = asyncHandler(async (req, res, next) => {
   } catch (error) {
     return next(new ApiError(error.message || 'Error deleting customer', 500));
   }
+});
+
+exports.exportCustomersCSV = asyncHandler(async (req, res) => {
+  // جلب كل العملاء مع الفواتير الخاصة بهم
+  const customers = await Customer.find({}).lean();
+
+  const csvRows = [];
+
+  // العناوين
+  csvRows.push(
+    [
+      'اسم العميل',
+      'رقم الهاتف',
+      'واتساب',
+      'المحافظة',
+      'العنوان',
+      'رقم الفاتورة',
+      'اسم المنتج',
+      'سعر المنتج',
+      'التاريخ',
+      'كود الفرع',
+    ].join(',')
+  );
+
+  for (const customer of customers) {
+    // لو مفيش فواتير في log، نضيف سطر واحد للعميل بدون فاتورة
+    if (!customer.log || customer.log.length === 0) {
+      csvRows.push(
+        [
+          `"${customer.name || ''}"`,
+          customer.phone || '',
+          `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
+          customer.governorate || '',
+          customer.streetAddress || '',
+          '',
+          '',
+          '',
+          '',
+          customer.primaryBranchId || '',
+        ].join(',')
+      );
+      continue;
+    }
+
+    // لكل فاتورة في log العميل
+    for (const logEntry of customer.log) {
+      // لو مفيش منتجات (من الـ invoice الأصلي)، نستخدم التفاصيل
+      const invoiceDetails = logEntry.details || '';
+
+      // نفترض إن التفاصيل فيها اسم المنتج وسعره (مثال: "منتج X - 100 جنيه")
+      // أو نجيب الفاتورة الكاملة من collection Invoice لو موجودة
+      let productName = '';
+      let productPrice = '';
+
+      if (logEntry.invoiceId) {
+        const fullInvoice = await Invoice.findOne({
+          invoiceCode: logEntry.invoiceId,
+        }).lean();
+        if (
+          fullInvoice &&
+          fullInvoice.products &&
+          fullInvoice.products.length > 0
+        ) {
+          // لو فيه أكتر من منتج، نضيف سطر لكل منتج
+          for (const prod of fullInvoice.products) {
+            csvRows.push(
+              [
+                `"${customer.name || ''}"`,
+                customer.phone || '',
+                `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
+                customer.governorate || '',
+                customer.streetAddress || '',
+                logEntry.invoiceId || '',
+                `"${prod.productName || ''}"`,
+                prod.price || '',
+                new Date(logEntry.date).toLocaleDateString('ar-EG'),
+                customer.primaryBranchId || '',
+              ].join(',')
+            );
+          }
+          continue; // خلاص خلصنا الفاتورة دي
+        }
+      }
+
+      // fallback لو مفيش منتجات مفصلة
+      csvRows.push(
+        [
+          `"${customer.name || ''}"`,
+          customer.phone || '',
+          `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
+          customer.governorate || '',
+          customer.streetAddress || '',
+          logEntry.invoiceId || '',
+          `"${invoiceDetails}"`,
+          logEntry.amount || '',
+          new Date(logEntry.date).toLocaleDateString('ar-EG'),
+          customer.primaryBranchId || '',
+        ].join(',')
+      );
+    }
+  }
+
+  const csvContent = csvRows.join('\n');
+
+  res.header('Content-Type', 'text/csv; charset=utf-8');
+  res.attachment('عملاء_ومشترياتهم.csv');
+  res.send('\uFEFF' + csvContent); // BOM لدعم العربي في Excel
 });

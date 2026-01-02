@@ -7,6 +7,7 @@ const {
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  exportCustomersCSV,
 } = require('../Services/customerService');
 
 const authService = require('../Services/authServices');
@@ -18,6 +19,7 @@ router.use(ensureDbConnection);
 
 // router.use(authService.protect);
 // router.use(authService.allowedTo('admin', 'manager'));
+router.route('/export-csv').get(exportCustomersCSV);
 
 router.route('/').get(getAllCustomers).post(createCustomer);
 
@@ -28,5 +30,3 @@ router
   .delete(deleteCustomer);
 
 module.exports = router;
-
-
