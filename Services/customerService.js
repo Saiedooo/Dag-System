@@ -219,3 +219,99 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   res.attachment('عملاء_ومشترياتهم.csv');
   res.send('\uFEFF' + csvContent);
 });
+exports.importCustomersCSV = asyncHandler(async (req, res) => {
+  const { data } = req.body; // data هو array من objects (صفوف الـ CSV بعد التحويل في الفرونت)
+
+  const results = {
+    createdCustomers: 0,
+    updatedCustomers: 0,
+    createdInvoices: 0,
+    errors: [],
+  };
+
+  for (const row of data) {
+    try {
+      // تحضير بيانات العميل
+      const customerData = {
+        code: row['كود العميل']?.trim() || null, // نستخدم الكود إذا موجود، иначе null لتوليد جديد
+        name: row['اسم العميل']?.trim() || '',
+        phone: row['رقم الهاتف']?.trim() || '',
+        governorate: row['المحافظة']?.trim() || '',
+        streetAddress: row['العنوان']?.trim() || '',
+        // أضف حقول أخرى إذا لزم الأمر، مثل balance إلخ
+      };
+
+      // البحث عن العميل (بناءً على الكود إذا موجود، أو الاسم + الهاتف لتجنب التكرار)
+      let customer;
+      if (customerData.code) {
+        customer = await Customer.findOne({ code: customerData.code });
+      } else {
+        customer = await Customer.findOne({
+          name: customerData.name,
+          phone: customerData.phone,
+        });
+      }
+
+      const isNew = !customer;
+      if (isNew) {
+        customer = new Customer(customerData);
+        if (!customer.code) {
+          customer.code = `CUST-${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 4)}`;
+        }
+        results.createdCustomers++;
+      } else {
+        // تحديث العميل الموجود
+        Object.assign(customer, customerData);
+        results.updatedCustomers++;
+      }
+
+      await customer.save();
+
+      // الآن معالجة الفواتير (افترض أن الصف يحتوي على حقول متعلقة بالفواتير)
+      // مثال شائع: قد يكون هناك أعمدة مثل "رقم الفاتورة", "تاريخ الفاتورة", "المبلغ", "المدفوع", إلخ
+      // إذا كان هناك عدة فواتير لكل عميل، قد تحتاج إلى أعمدة متعددة أو تنسيق مختلف
+
+      // هنا مثال بسيط افتراضي (عدل حسب أعمدة الـ CSV الفعلية)
+      if (row['رقم الفاتورة']) {
+        const invoiceData = {
+          invoiceNumber: row['رقم الفاتورة']?.trim(),
+          date: row['تاريخ الفاتورة']
+            ? new Date(row['تاريخ الفاتورة'])
+            : new Date(),
+          totalAmount: parseFloat(row['المبلغ الإجمالي']) || 0,
+          paidAmount: parseFloat(row['المدفوع']) || 0,
+          remainingAmount: parseFloat(row['المتبقي']) || 0,
+          customer: customer._id, // ربط بالعميل
+          // أضف تفاصيل أخرى مثل المنتجات إذا كانت موجودة
+        };
+
+        // تحقق إذا كانت الفاتورة موجودة مسبقاً (لتجنب التكرار)
+        let invoice = await Invoice.findOne({
+          invoiceNumber: invoiceData.invoiceNumber,
+          customer: customer._id,
+        });
+
+        if (!invoice) {
+          invoice = new Invoice(invoiceData);
+          await invoice.save();
+          results.createdInvoices++;
+        }
+        // إذا تريد تحديث الفواتير الموجودة، أضف else هنا
+      }
+
+      // إذا كان هناك أكثر من فاتورة لكل صف، عدل اللوپ حسب الحاجة
+    } catch (err) {
+      results.errors.push({
+        row,
+        error: err.message || 'خطأ غير معروف',
+      });
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    results,
+  });
+});
