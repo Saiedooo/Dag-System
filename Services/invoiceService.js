@@ -32,29 +32,31 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
-    // إنشاء invoiceCode تلقائي لو مش موجود
     if (!body.invoiceCode) {
-      body.invoiceCode = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      body.invoiceCode = `INV-${Date.now()}-${Math.floor(
+        Math.random() * 10000
+      )}`;
     }
 
-    // التحقق من الحقول الإلزامية
     if (!body.customer) {
       return next(new ApiError('معرف العميل (customer) مطلوب', 400));
     }
 
-    // تعديل مهم: نقبل totalPrice = 0 (للفواتير اللي جاية من التقييمات اليومية)
-    if (!body.totalPrice || typeof body.totalPrice !== 'number') {
-      return next(new ApiError('إجمالي السعر (totalPrice) مطلوب ويجب أن يكون رقمًا', 400));
+    if (body.totalPrice !== undefined && typeof body.totalPrice !== 'number') {
+      return next(new ApiError('إجمالي السعر يجب أن يكون رقمًا', 400));
     }
-    // مسموح بـ 0 دلوقتي
-    // if (body.totalPrice <= 0) {  // تم تعليق الشرط ده
 
-    // لو products مش موجود أو فاضي، نعمل واحد افتراضي
-    if (!body.products || !Array.isArray(body.products) || body.products.length === 0) {
+    body.totalPrice = body.totalPrice ?? 0;
+
+    if (
+      !body.products ||
+      !Array.isArray(body.products) ||
+      body.products.length === 0
+    ) {
       body.products = [
         {
-          productName: body.productName || 'شراء متنوع (متابعة تقييم)',
-          price: body.totalPrice || 0,
+          productName: body.productName || 'شراء متنوع (متابعة تقييم يومي)',
+          price: body.totalPrice,
           quantity: 1,
         },
       ];
@@ -88,7 +90,6 @@ exports.updateInvoice = asyncHandler(async (req, res, next) => {
     const body = { ...req.body };
     delete body._id;
 
-    // نفس التساهل في التحديث
     if (body.totalPrice !== undefined && typeof body.totalPrice !== 'number') {
       return next(new ApiError('إجمالي السعر يجب أن يكون رقمًا', 400));
     }
@@ -99,14 +100,18 @@ exports.updateInvoice = asyncHandler(async (req, res, next) => {
     });
 
     if (!invoice) {
-      return next(new ApiError(`No invoice found for this id ${req.params.id}`, 404));
+      return next(
+        new ApiError(`No invoice found for this id ${req.params.id}`, 404)
+      );
     }
 
     res.status(200).json({ data: invoice });
   } catch (error) {
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e) => e.message);
-      return next(new ApiError(`Invoice validation failed: ${messages.join(', ')}`, 400));
+      return next(
+        new ApiError(`Invoice validation failed: ${messages.join(', ')}`, 400)
+      );
     }
     return next(new ApiError(error.message || 'Error updating invoice', 500));
   }
