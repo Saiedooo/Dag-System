@@ -70,6 +70,7 @@ app.use('/api/v1/complaint', complaintRoute);
 app.use('/api/v1/invoices', invoiceRoute);
 app.use('/api/v1/customers', customerRoute);
 app.use('/api/v1/daily-inquiries', dailyInquiryRoute);
+app.use('/api/v1/dailyFeedbacks', require('./Routes/dailyFeedbackRoutes'));
 
 app.use(globalError);
 
