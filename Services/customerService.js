@@ -178,6 +178,7 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
 });
 
 // Import from CSV - النسخة المصححة بالكامل
+// Import from CSV - النسخة المصححة نهائيًا (بدون أخطاء نحوية)
 exports.importCustomersCSV = asyncHandler(async (req, res) => {
   const { data } = req.body; // data هو array من الـ rows
   const results = {
@@ -193,12 +194,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
       // 1. تحضير بيانات العميل الأساسية
       const customerData = {
         name: (row['اسم العميل'] || row['الاسم'] || 'عميل بدون اسم').trim(),
-        phone: (
-          row['رقم الهاتف'] ||
-          row['تليفون'] ||
-          row['موبايل'] ||
-          ''
-        ).trim(),
+        phone: (row['رقم الهاتف'] || row['تليفون'] || row['موبايل'] || '').trim(),
         governorate: (row['المحافظة'] || '').trim(),
         streetAddress: (row['العنوان'] || '').trim(),
       };
@@ -207,10 +203,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
       let customer = await Customer.findOne({
         $or: [
           customerData.phone ? { phone: customerData.phone } : null,
-          {
-            name: customerData.name,
-            phone: customerData.phone || { $exists: true },
-          },
+          { name: customerData.name, phone: customerData.phone || { $exists: true } },
         ].filter(Boolean),
       });
 
@@ -226,19 +219,24 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
       let addedPurchaseAmount = 0;
 
-      // 3. معالجة الفاتورة إذا وجد مبلغ أو رقم فاتورة
-      if (row['رقم الفاتورة'] || row['المبلغ الإجمالي']) {
-        const totalAmount = parseFloat(row['المبلغ الإجمالي']) || 0;
+      // 3. معالجة الفاتورة إذا وجد رقم فاتورة أو مبلغ (التصليح هنا)
+      if (row['رقم الفاتورة'] || row['المبلغ الإجمالي'] || row['سعر المنتج']) {
+        const totalAmount = parseFloat(
+          row['المبلغ الإجمالي'] ||
+          row['سعر المنتج'] ||     // ده اللي موجود فعليًا في الـ CSV المصدر
+          row['المجموع'] ||
+          row['السعر'] ||
+          0
+        ) || 0;
+
         if (totalAmount > 0) {
           addedPurchaseAmount = totalAmount;
 
-          // تحديد كود الفاتورة الصحيح (invoiceCode)
           const invoiceCode = (
             row['رقم الفاتورة'] ||
             `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
           ).trim();
 
-          // بيانات الفاتورة الصحيحة حسب الـ schema
           const invoiceData = {
             invoiceCode,
             customer: customer._id,
@@ -252,47 +250,39 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
             ],
           };
 
-          // التحقق من وجود الفاتورة مسبقاً (بالـ invoiceCode فقط، لأنه unique)
           const existingInvoice = await Invoice.findOne({ invoiceCode });
 
-          let currentInvoice;
           if (!existingInvoice) {
-            currentInvoice = await Invoice.create(invoiceData);
+            await Invoice.create(invoiceData);
             results.createdInvoices++;
-          } else {
-            currentInvoice = existingInvoice;
           }
 
-          // === الأهم: إضافة entry في log العميل ===
+          // إضافة entry في log العميل (منع التكرار)
           customer.log = customer.log || [];
-          const logExists = customer.log.some(
-            (entry) => entry.invoiceId === invoiceCode
-          );
+          const logExists = customer.log.some(entry => entry.invoiceId === invoiceCode);
           if (!logExists) {
             customer.log.push({
               invoiceId: invoiceCode,
-              date: row['تاريخ الفاتورة']
-                ? new Date(row['تاريخ الفاتورة']).toISOString().split('T')[0]
+              date: row['التاريخ']
+                ? new Date(row['التاريخ']).toISOString().split('T')[0]
                 : new Date().toISOString().split('T')[0],
               amount: totalAmount,
               details: row['اسم المنتج'] || 'مشتريات من استيراد CSV',
               pointsChange: Math.floor(totalAmount / 2000) * 50,
-              status: 'تم التسليم', // يمكنك تغييره حسب الحاجة
+              status: 'تم التسليم',
             });
           }
         }
       }
 
-      // 4. تحديث النقاط والإجماليات فقط إذا كان في مشتريات جديدة
+      // 4. تحديث النقاط والإجماليات
       if (addedPurchaseAmount > 0) {
         const earnedPoints = Math.floor(addedPurchaseAmount / 2000) * 50;
 
-        customer.totalPurchases =
-          (customer.totalPurchases || 0) + addedPurchaseAmount;
+        customer.totalPurchases = (customer.totalPurchases || 0) + addedPurchaseAmount;
         customer.purchaseCount = (customer.purchaseCount || 0) + 1;
         customer.points = (customer.points || 0) + earnedPoints;
-        customer.totalPointsEarned =
-          (customer.totalPointsEarned || 0) + earnedPoints;
+        customer.totalPointsEarned = (customer.totalPointsEarned || 0) + earnedPoints;
         customer.lastPurchaseDate = new Date();
 
         // تحديث التصنيف
