@@ -20,41 +20,15 @@ exports.getCustomerById = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: customer });
 });
 
-// Create new customer
 exports.createCustomer = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
-    if (!body.id || !body.name || !body.phone) {
-      return next(new ApiError('id, name and phone are required', 400));
+    if (!body.id) {
+      body.id = `CUST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
 
-    const customerData = {
-      id: body.id,
-      name: body.name,
-      phone: body.phone,
-      email: body.email || null,
-      joinDate: body.joinDate || new Date().toISOString(),
-      type: body.type || 'عادي',
-      governorate: body.governorate || null,
-      streetAddress: body.streetAddress || null,
-      classification: body.classification || 'برونزي',
-      points: body.points !== undefined ? body.points : 0,
-      totalPurchases: body.totalPurchases !== undefined ? body.totalPurchases : 0,
-      lastPurchaseDate: body.lastPurchaseDate || null,
-      hasBadReputation: body.hasBadReputation !== undefined ? body.hasBadReputation : false,
-      source: body.source || 'Store',
-      totalPointsEarned: body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
-      totalPointsUsed: body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
-      purchaseCount: body.purchaseCount !== undefined ? body.purchaseCount : 0,
-      log: body.log || [],
-      impressions: body.impressions || [],
-      primaryBranchId: body.primaryBranchId || null,
-      lastModified: new Date().toISOString(),
-    };
-
-    const customer = await Customer.create(customerData);
-
+    const customer = await Customer.create(body);
     res.status(201).json({ data: customer });
   } catch (error) {
     if (error.code === 11000 && error.keyPattern && error.keyPattern.id) {
@@ -62,11 +36,61 @@ exports.createCustomer = asyncHandler(async (req, res, next) => {
     }
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e) => e.message);
-      return next(new ApiError(`Customer validation failed: ${messages.join(', ')}`, 400));
+      return next(
+        new ApiError(`Customer validation failed: ${messages.join(', ')}`, 400)
+      );
     }
     return next(new ApiError(error.message || 'Error creating customer', 500));
   }
 });
+
+// Create new customer
+// exports.createCustomer = asyncHandler(async (req, res, next) => {
+//   try {
+//     const body = { ...req.body };
+
+//     if (!body.id || !body.name || !body.phone) {
+//       return next(new ApiError('id, name and phone are required', 400));
+//     }
+
+//     const customerData = {
+//       id: body.id,
+//       name: body.name,
+//       phone: body.phone,
+//       email: body.email || null,
+//       joinDate: body.joinDate || new Date().toISOString(),
+//       type: body.type || 'عادي',
+//       governorate: body.governorate || null,
+//       streetAddress: body.streetAddress || null,
+//       classification: body.classification || 'برونزي',
+//       points: body.points !== undefined ? body.points : 0,
+//       totalPurchases: body.totalPurchases !== undefined ? body.totalPurchases : 0,
+//       lastPurchaseDate: body.lastPurchaseDate || null,
+//       hasBadReputation: body.hasBadReputation !== undefined ? body.hasBadReputation : false,
+//       source: body.source || 'Store',
+//       totalPointsEarned: body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
+//       totalPointsUsed: body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
+//       purchaseCount: body.purchaseCount !== undefined ? body.purchaseCount : 0,
+//       log: body.log || [],
+//       impressions: body.impressions || [],
+//       primaryBranchId: body.primaryBranchId || null,
+//       lastModified: new Date().toISOString(),
+//     };
+
+//     const customer = await Customer.create(customerData);
+
+//     res.status(201).json({ data: customer });
+//   } catch (error) {
+//     if (error.code === 11000 && error.keyPattern && error.keyPattern.id) {
+//       return next(new ApiError('Customer id already exists', 400));
+//     }
+//     if (error.name === 'ValidationError') {
+//       const messages = Object.values(error.errors).map((e) => e.message);
+//       return next(new ApiError(`Customer validation failed: ${messages.join(', ')}`, 400));
+//     }
+//     return next(new ApiError(error.message || 'Error creating customer', 500));
+//   }
+// });
 
 // Update customer by custom id field
 exports.updateCustomer = asyncHandler(async (req, res, next) => {
