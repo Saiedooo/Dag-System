@@ -11,13 +11,7 @@ const {
 const router = express.Router();
 
 // إنشاء وجلب الكل
-router
-  .route('/')
-  .post(createDailyFeedback)
-  .get(getAllDailyFeedbacks)
-  .route('/')
-  .post(createDailyFeedback)
-  .get(getAllDailyFeedbacks);
+router.route('/').post(createDailyFeedback).get(getAllDailyFeedbacks);
 
 // عمليات على تقييم معين
 router

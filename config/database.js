@@ -6,8 +6,11 @@ mongoose.set('bufferCommands', true);
 const dbConnection = async () => {
   const dbUrl = process.env.DB_URL;
   if (!dbUrl) {
-    console.error('Missing DB_URL in environment');
-    process.exit(1);
+    const msg = 'Missing DB_URL in environment';
+    console.error(msg);
+    // In serverless environments (Vercel) calling process.exit will terminate the function unexpectedly.
+    // Throw instead so the caller/middleware can handle the error and return a proper HTTP response.
+    throw new Error(msg);
   }
 
   // Check if already connected (important for Vercel serverless)
@@ -38,8 +41,8 @@ const dbConnection = async () => {
     }
   } catch (err) {
     console.error('❌ Database Connection Error:', err.message || err);
-    // ensure process exits so nodemon doesn't keep app running in bad state
-    process.exit(1);
+    // Throw the error so serverless platforms can return a proper error response
+    throw err;
   }
 };
 
