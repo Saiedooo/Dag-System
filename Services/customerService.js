@@ -1,4 +1,4 @@
-// Services/customerService.js
+// Services/customerService.js (النسخة الصحيحة الكاملة بعد التصليح)
 
 const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
@@ -25,11 +25,9 @@ exports.getCustomerById = asyncHandler(async (req, res, next) => {
 exports.createCustomer = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
-
     if (!body.id) {
       body.id = `CUST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
-
     const customer = await Customer.create(body);
     res.status(201).json({ data: customer });
   } catch (error) {
@@ -52,8 +50,7 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const body = { ...req.body };
     delete body._id;
-    delete body.id; // لا يسمح بتغيير الـ id
-
+    delete body.id; // لا يسمح بتغيير الـ id المخصص
     body.lastModified = new Date().toISOString();
 
     const customer = await Customer.findOneAndUpdate({ id: id }, body, {
@@ -156,7 +153,7 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
         }
       }
 
-      // fallback
+      // Fallback
       csvRows.push(
         [
           `"${customer.name || ''}"`,
@@ -180,10 +177,9 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   res.send('\uFEFF' + csvContent);
 });
 
-// Import from CSV
+// Import from CSV - النسخة المصححة بالكامل
 exports.importCustomersCSV = asyncHandler(async (req, res) => {
-  const { data } = req.body;
-
+  const { data } = req.body; // data هو array من الـ rows
   const results = {
     createdCustomers: 0,
     updatedCustomers: 0,
@@ -194,7 +190,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
   for (const row of data) {
     try {
-      // ===== 1. تحضير بيانات العميل =====
+      // 1. تحضير بيانات العميل الأساسية
       const customerData = {
         name: (row['اسم العميل'] || row['الاسم'] || 'عميل بدون اسم').trim(),
         phone: (
@@ -207,7 +203,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
         streetAddress: (row['العنوان'] || '').trim(),
       };
 
-      // ===== 2. البحث عن العميل (بالتليفون أو الاسم + تليفون) =====
+      // 2. البحث عن العميل
       let customer = await Customer.findOne({
         $or: [
           customerData.phone ? { phone: customerData.phone } : null,
@@ -230,27 +226,23 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
       let addedPurchaseAmount = 0;
 
-      // ===== 3. معالجة الفاتورة لو موجودة =====
+      // 3. معالجة الفاتورة إذا وجد مبلغ أو رقم فاتورة
       if (row['رقم الفاتورة'] || row['المبلغ الإجمالي']) {
         const totalAmount = parseFloat(row['المبلغ الإجمالي']) || 0;
-
         if (totalAmount > 0) {
           addedPurchaseAmount = totalAmount;
 
+          // تحديد كود الفاتورة الصحيح (invoiceCode)
+          const invoiceCode = (
+            row['رقم الفاتورة'] ||
+            `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+          ).trim();
+
+          // بيانات الفاتورة الصحيحة حسب الـ schema
           const invoiceData = {
-            invoiceNumber: (
-              row['رقم الفاتورة'] ||
-              `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-            ).trim(),
-            date: row['تاريخ الفاتورة']
-              ? new Date(row['تاريخ الفاتورة'])
-              : new Date(),
-            totalAmount,
-            paidAmount: parseFloat(row['المدفوع']) || 0,
-            remainingAmount:
-              parseFloat(row['المتبقي']) ||
-              totalAmount - (parseFloat(row['المدفوع']) || 0),
+            invoiceCode,
             customer: customer._id,
+            totalPrice: totalAmount,
             products: [
               {
                 productName: row['اسم المنتج'] || 'مشتريات من استيراد CSV',
@@ -260,22 +252,40 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
             ],
           };
 
-          const existingInvoice = await Invoice.findOne({
-            invoiceNumber: invoiceData.invoiceNumber,
-            customer: customer._id,
-          });
+          // التحقق من وجود الفاتورة مسبقاً (بالـ invoiceCode فقط، لأنه unique)
+          const existingInvoice = await Invoice.findOne({ invoiceCode });
 
+          let currentInvoice;
           if (!existingInvoice) {
-            const newInvoice = new Invoice(invoiceData);
-            await newInvoice.save();
+            currentInvoice = await Invoice.create(invoiceData);
             results.createdInvoices++;
+          } else {
+            currentInvoice = existingInvoice;
+          }
+
+          // === الأهم: إضافة entry في log العميل ===
+          customer.log = customer.log || [];
+          const logExists = customer.log.some(
+            (entry) => entry.invoiceId === invoiceCode
+          );
+          if (!logExists) {
+            customer.log.push({
+              invoiceId: invoiceCode,
+              date: row['تاريخ الفاتورة']
+                ? new Date(row['تاريخ الفاتورة']).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0],
+              amount: totalAmount,
+              details: row['اسم المنتج'] || 'مشتريات من استيراد CSV',
+              pointsChange: Math.floor(totalAmount / 2000) * 50,
+              status: 'تم التسليم', // يمكنك تغييره حسب الحاجة
+            });
           }
         }
       }
 
-      // ===== 4. تحديث إجماليات العميل والنقاط =====
+      // 4. تحديث النقاط والإجماليات فقط إذا كان في مشتريات جديدة
       if (addedPurchaseAmount > 0) {
-        const earnedPoints = Math.floor(addedPurchaseAmount / 2000) * 50; // كل 2000 جنيه = 50 نقطة
+        const earnedPoints = Math.floor(addedPurchaseAmount / 2000) * 50;
 
         customer.totalPurchases =
           (customer.totalPurchases || 0) + addedPurchaseAmount;
@@ -285,7 +295,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           (customer.totalPointsEarned || 0) + earnedPoints;
         customer.lastPurchaseDate = new Date();
 
-        // تحديث التصنيف بناءً على الإجمالي (اختياري - ممكن تغيره)
+        // تحديث التصنيف
         if (customer.totalPurchases >= 10000) {
           customer.classification = 'ذهبي';
         } else if (customer.totalPurchases >= 5000) {
@@ -310,7 +320,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: `تم الاستيراد بنجاح: ${results.createdCustomers} عميل جديد، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} عميل تم تحديث نقاطه`,
+    message: `تم الاستيراد بنجاح: ${results.createdCustomers} عميل جديد، ${results.createdInvoices} فاتورة جديدة، ${results.pointsUpdated} عميل تم تحديث نقاطه والـ log`,
     results,
   });
 });
