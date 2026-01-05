@@ -191,59 +191,59 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
   for (const row of data) {
     try {
-      // 1. بيانات العميل
+      // تخطي السطور الفاضية تمامًا
+      if (!row['اسم العميل'] && !row['رقم الهاتف']) continue;
+
       const customerData = {
-        name: (row['اسم العميل'] || row['الاسم'] || 'عميل بدون اسم').trim(),
-        phone: (
-          row['رقم الهاتف'] ||
-          row['تليفون'] ||
-          row['موبايل'] ||
-          ''
-        ).trim(),
+        name: (row['اسم العميل'] || '').trim() || 'عميل بدون اسم',
+        phone: (row['رقم الهاتف'] || '').trim(),
         governorate: (row['المحافظة'] || '').trim(),
         streetAddress: (row['العنوان'] || '').trim(),
+        primaryBranchId: row['كود الفرع'] || '',
       };
 
-      // 2. بحث أو إنشاء عميل
-      let customer = await Customer.findOne({
-        phone: customerData.phone || { $exists: true },
-      });
+      // البحث بالتليفون أولاً (الأدق)
+      let customer = await Customer.findOne({ phone: customerData.phone });
 
+      // لو مش موجود بالتليفون، ابحث بالاسم + تليفون
+      if (!customer && customerData.name && customerData.phone) {
+        customer = await Customer.findOne({
+          name: customerData.name,
+          phone: customerData.phone,
+        });
+      }
+
+      // لو مش موجود خالص، أنشئ جديد
       if (!customer) {
         customer = new Customer(customerData);
         customer.id = `CUST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         results.createdCustomers++;
       } else {
+        // تحديث البيانات الأساسية دايمًا
         Object.assign(customer, customerData);
         results.updatedCustomers++;
       }
 
-      // 3. قراءة المبلغ من أي عمود ممكن
-      const totalAmount =
-        parseFloat(
-          row['سعر المنتج'] || // الأولوية الأولى لأنه موجود في التصدير
-            row['المبلغ الإجمالي'] ||
-            row['المجموع'] ||
-            row['السعر'] ||
-            0
-        ) || 0;
+      // قراءة المبلغ (الأولوية لسعر المنتج لأنه موجود في التصدير)
+      const priceStr =
+        row['سعر المنتج'] || row['المبلغ الإجمالي'] || row['المجموع'] || '0';
+      const totalAmount = parseFloat(priceStr.replace(/[^0-9.-]/g, '')) || 0;
 
-      // لو في مبلغ > 0، نعمل فاتورة ونضيف log ونقاط
-      if (totalAmount > 0) {
+      if (totalAmount > 0 || row['رقم الفاتورة']) {
         const invoiceCode =
           row['رقم الفاتورة']?.trim() ||
           `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
         // إنشاء فاتورة لو مش موجودة
         const existingInvoice = await Invoice.findOne({ invoiceCode });
-        if (!existingInvoice) {
+        if (!existingInvoice && totalAmount > 0) {
           await Invoice.create({
             invoiceCode,
             customer: customer._id,
             totalPrice: totalAmount,
             products: [
               {
-                productName: row['اسم المنتج'] || 'مشتريات من CSV',
+                productName: row['اسم المنتج'] || 'مشتريات',
                 price: totalAmount,
                 quantity: 1,
               },
@@ -253,49 +253,51 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
         }
 
         // إضافة log لو مش موجود
-        customer.log = customer.log || [];
-        if (!customer.log.some((entry) => entry.invoiceId === invoiceCode)) {
+        if (!customer.log.some((e) => e.invoiceId === invoiceCode)) {
           customer.log.push({
             invoiceId: invoiceCode,
-            date: row['التاريخ']
-              ? new Date(row['التاريخ']).toISOString().split('T')[0]
-              : new Date().toISOString().split('T')[0],
+            date: row['التاريخ'] || new Date().toISOString().split('T')[0],
             amount: totalAmount,
-            details: row['اسم المنتج'] || 'مشتريات من CSV',
-            pointsChange: Math.floor(totalAmount / 2000) * 50,
+            details: row['اسم المنتج'] || 'مشتريات',
+            pointsChange:
+              totalAmount > 0 ? Math.floor(totalAmount / 2000) * 50 : 0,
             status: 'تم التسليم',
           });
         }
 
-        // تحديث النقاط والإجماليات
-        const earnedPoints = Math.floor(totalAmount / 2000) * 50;
-        customer.totalPurchases = (customer.totalPurchases || 0) + totalAmount;
-        customer.purchaseCount = (customer.purchaseCount || 0) + 1;
-        customer.points = (customer.points || 0) + earnedPoints;
-        customer.totalPointsEarned =
-          (customer.totalPointsEarned || 0) + earnedPoints;
-        customer.lastPurchaseDate = new Date();
+        if (totalAmount > 0) {
+          const earnedPoints = Math.floor(totalAmount / 2000) * 50;
+          customer.totalPurchases =
+            (customer.totalPurchases || 0) + totalAmount;
+          customer.purchaseCount = (customer.purchaseCount || 0) + 1;
+          customer.points = (customer.points || 0) + earnedPoints;
+          customer.totalPointsEarned =
+            (customer.totalPointsEarned || 0) + earnedPoints;
+          customer.lastPurchaseDate = new Date();
 
-        // تحديث التصنيف
-        if (customer.totalPurchases >= 10000) customer.classification = 'ذهبي';
-        else if (customer.totalPurchases >= 5000)
-          customer.classification = 'فضي';
-        else if (customer.totalPurchases >= 2000)
-          customer.classification = 'برونزي';
-        else customer.classification = 'غير محدد';
+          // تصنيف
+          if (customer.totalPurchases >= 10000)
+            customer.classification = 'ذهبي';
+          else if (customer.totalPurchases >= 5000)
+            customer.classification = 'فضي';
+          else if (customer.totalPurchases >= 2000)
+            customer.classification = 'برونزي';
+          else customer.classification = 'غير محدد';
 
-        results.pointsUpdated++;
+          results.pointsUpdated++;
+        }
       }
 
       await customer.save();
     } catch (err) {
       results.errors.push({ row, error: err.message });
+      console.error('Error importing row:', err); // مهم للديباج
     }
   }
 
   res.json({
     success: true,
-    message: `تم الاستيراد: ${results.createdCustomers} جديد، ${results.updatedCustomers} محدث، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} نقاط`,
+    message: `تم الاستيراد بنجاح: ${results.createdCustomers} جديد، ${results.updatedCustomers} محدث، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} نقاط`,
     results,
   });
 });
