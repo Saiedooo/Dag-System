@@ -181,19 +181,32 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
 
 // Import from CSV - النسخة النهائية المضمونة
 // Import from CSV - النسخة النهائية المصححة مع هدية ترحيبية 50 نقطة لكل عميل جديد
+// Import from CSV - النسخة النهائية المثالية مع:
+// 1. 50 نقطة ترحيبية لكل عميل جديد
+// 2. فاتورة ترحيبية
+// 3. مهمة تقييم يومية تلقائية (DailyFeedbackTask) عشان تظهر في الصفحة
 exports.importCustomersCSV = asyncHandler(async (req, res) => {
   const { data } = req.body;
   const results = {
     createdCustomers: 0,
     updatedCustomers: 0,
     createdInvoices: 0,
+    createdTasks: 0, // جديد: عدّاد للمهام اللي اتعملت
     pointsUpdated: 0,
     errors: [],
   };
 
+  // تأكد إن الموديل موجود (لو مش موجود، هيعمل error ومش هيوقف الاستيراد)
+  let DailyFeedbackTask;
+  try {
+    DailyFeedbackTask = require('../Models/dailyFeedbackTaskModel.js');
+  } catch (e) {
+    console.warn('DailyFeedbackTask model not found - skipping task creation');
+  }
+
   for (const row of data) {
     try {
-      // تخطي السطور الفارغة تمامًا
+      // تخطي السطور الفارغة
       if (!row['اسم العميل'] && !row['رقم الهاتف']) continue;
 
       // تنظيف رقم الهاتف
@@ -228,15 +241,15 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
         customer.id = `CUST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         results.createdCustomers++;
 
-        // === هدية ترحيبية 50 نقطة + فاتورة ترحيبية لكل عميل جديد ===
+        // ============ هدية ترحيبية 50 نقطة ============
         customer.points = (customer.points || 0) + 50;
         customer.totalPointsEarned = (customer.totalPointsEarned || 0) + 50;
 
+        // ============ فاتورة ترحيبية ============
         const welcomeInvoiceCode = `WELCOME-${Date.now()}-${Math.floor(
           Math.random() * 1000
         )}`;
 
-        // إنشاء فاتورة ترحيبية (سعرها 0)
         await Invoice.create({
           invoiceCode: welcomeInvoiceCode,
           customer: customer._id,
@@ -250,7 +263,9 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           ],
         });
 
-        // إضافة إدخال في الـ log
+        results.createdInvoices++;
+
+        // ============ إدخال في الـ log ============
         customer.log = customer.log || [];
         customer.log.push({
           invoiceId: welcomeInvoiceCode,
@@ -261,15 +276,32 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           status: 'تم التسليم',
         });
 
-        results.createdInvoices++;
+        // ============ إنشاء مهمة تقييم يومية تلقائية (الأهم!) ============
+        if (DailyFeedbackTask) {
+          try {
+            await DailyFeedbackTask.create({
+              customerId: customer.id,
+              customerName: customer.name,
+              invoiceId: welcomeInvoiceCode,
+              invoiceDate: new Date(),
+              status: 'Pending', // عشان تظهر في المهام المعلقة
+              branchId: customer.primaryBranchId || null,
+            });
+            results.createdTasks++;
+          } catch (taskErr) {
+            console.error('فشل إنشاء مهمة تقييم ترحيبية:', taskErr);
+            // مش هنفشل الاستيراد كله
+          }
+        }
+
         results.pointsUpdated++;
-        // ==========================================================
+        // =====================================================
       } else {
         Object.assign(customer, customerData);
         results.updatedCustomers++;
       }
 
-      // قراءة المبلغ من الـ CSV (للمشتريات العادية)
+      // ============ المشتريات العادية من الـ CSV (زي الأول) ============
       const priceStr =
         row['سعر المنتج'] ||
         row['المبلغ الإجمالي'] ||
@@ -283,7 +315,6 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           (row['رقم الفاتورة'] || '').trim() ||
           `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-        // إنشاء فاتورة لو في مبلغ ومش موجودة
         if (totalAmount > 0) {
           const existing = await Invoice.findOne({ invoiceCode });
           if (!existing) {
@@ -303,7 +334,6 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           }
         }
 
-        // إضافة log لو مش موجود
         customer.log = customer.log || [];
         if (!customer.log.some((e) => e.invoiceId === invoiceCode)) {
           const earnedPoints = Math.floor(totalAmount / 2000) * 50;
@@ -317,7 +347,6 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
             status: 'تم التسليم',
           });
 
-          // تحديث النقاط والإجماليات
           if (totalAmount > 0) {
             customer.totalPurchases =
               (customer.totalPurchases || 0) + totalAmount;
@@ -327,7 +356,6 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
               (customer.totalPointsEarned || 0) + earnedPoints;
             customer.lastPurchaseDate = new Date();
 
-            // تحديث التصنيف
             if (customer.totalPurchases >= 10000)
               customer.classification = 'ذهبي';
             else if (customer.totalPurchases >= 5000)
@@ -337,6 +365,27 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
             else customer.classification = 'غير محدد';
 
             results.pointsUpdated++;
+
+            // إضافة مهمة تقييم للفاتورة العادية كمان
+            if (DailyFeedbackTask) {
+              try {
+                await DailyFeedbackTask.findOneAndUpdate(
+                  { invoiceId: invoiceCode },
+                  {
+                    customerId: customer.id,
+                    customerName: customer.name,
+                    invoiceId: invoiceCode,
+                    invoiceDate: new Date(),
+                    status: 'Pending',
+                    branchId: customer.primaryBranchId || null,
+                  },
+                  { upsert: true, new: true }
+                );
+                results.createdTasks++;
+              } catch (taskErr) {
+                console.error('فشل إنشاء/تحديث مهمة تقييم:', taskErr);
+              }
+            }
           }
         }
       }
@@ -352,7 +401,12 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: `تم الاستيراد بنجاح: ${results.createdCustomers} عميل جديد (مع 50 نقطة ترحيبية)، ${results.updatedCustomers} محدث، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} تحديث نقاط`,
+    message: `تم الاستيراد بنجاح: 
+    • ${results.createdCustomers} عميل جديد (مع 50 نقطة + مهمة تقييم تلقائية)
+    • ${results.updatedCustomers} عميل محدث
+    • ${results.createdInvoices} فاتورة
+    • ${results.createdTasks} مهمة تقييم يومية
+    • ${results.pointsUpdated} تحديث نقاط`,
     results,
   });
 });
