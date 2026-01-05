@@ -221,7 +221,6 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
 });
 exports.importCustomersCSV = asyncHandler(async (req, res) => {
   const { data } = req.body;
-
   const results = {
     createdCustomers: 0,
     updatedCustomers: 0,
@@ -233,17 +232,17 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
     try {
       // تحضير بيانات العميل
       const customerData = {
-        code: row['كود العميل']?.trim() || null,
+        id: row['كود العميل']?.trim() || null, // ← غير code إلى id
         name: row['اسم العميل']?.trim() || 'عميل بدون اسم',
         phone: row['رقم الهاتف']?.trim() || '',
         governorate: row['المحافظة']?.trim() || '',
         streetAddress: row['العنوان']?.trim() || '',
       };
 
-      // البحث عن العميل (بالكود أو التليفون أو الاسم + تليفون)
+      // البحث عن العميل (بالـ id أو التليفون أو الاسم + تليفون)
       let customer = await Customer.findOne({
         $or: [
-          { code: customerData.code },
+          { id: customerData.id }, // ← id بدل code
           { phone: customerData.phone },
           { name: customerData.name, phone: customerData.phone },
         ].filter(Boolean),
@@ -251,10 +250,10 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
       if (!customer) {
         customer = new Customer(customerData);
-        if (!customer.code) {
-          customer.code = `CUST-${Date.now()}-${Math.floor(
+        if (!customer.id) {
+          customer.id = `CUST-${Date.now()}-${Math.floor(
             Math.random() * 10000
-          )}`;
+          )}`; // ← id
         }
         results.createdCustomers++;
       } else {
@@ -291,7 +290,7 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
       }
     } catch (err) {
       results.errors.push({
-        row: row,
+        row,
         error: err.message,
       });
     }
