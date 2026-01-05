@@ -10,10 +10,9 @@ const invoiceSchema = new mongoose.Schema(
 
     customer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Customer', // صح كده
       required: true,
     },
-
     products: [
       {
         productName: { type: String, required: true },

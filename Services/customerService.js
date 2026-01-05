@@ -21,46 +21,12 @@ exports.getCustomerById = asyncHandler(async (req, res, next) => {
 });
 
 // Create new customer
-JavaScriptexports.createCustomer = asyncHandler(async (req, res, next) => {
+exports.createCustomer = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
     if (!body.id || !body.name || !body.phone) {
       return next(new ApiError('id, name and phone are required', 400));
-    }
-
-    // استخراج بيانات الفاتورة الأولى إن وجدت
-    const initialPurchase = body.initialPurchase || null;
-    let extraPoints = 0;
-    let totalPurchases = 0;
-
-    let initialInvoice = null;
-
-    if (initialPurchase && initialPurchase.amount > 0) {
-      totalPurchases = initialPurchase.amount;
-
-      if (initialPurchase.amount > 2000) {
-        extraPoints = 50; // 50 نقطة هدية
-      }
-
-      // إنشاء فاتورة أولى بسيطة
-      const invoiceCode = `INV-${Date.now()}-${Math.floor(
-        Math.random() * 10000
-      )}`;
-
-      initialInvoice = await Invoice.create({
-        invoiceCode,
-        customer: null, // هيتملأ بعد إنشاء العميل
-        products: [
-          {
-            productName:
-              initialPurchase.description || 'شراء أولي - منتجات متنوعة',
-            price: initialPurchase.amount,
-            quantity: 1,
-          },
-        ],
-        totalPrice: initialPurchase.amount,
-      });
     }
 
     const customerData = {
@@ -73,40 +39,32 @@ JavaScriptexports.createCustomer = asyncHandler(async (req, res, next) => {
       governorate: body.governorate || null,
       streetAddress: body.streetAddress || null,
       classification: body.classification || 'برونزي',
-      points: extraPoints, // النقاط الإضافية
-      totalPurchases: totalPurchases,
-      lastPurchaseDate: totalPurchases > 0 ? new Date().toISOString() : null,
-      hasBadReputation: false,
+      points: body.points !== undefined ? body.points : 0,
+      totalPurchases: body.totalPurchases !== undefined ? body.totalPurchases : 0,
+      lastPurchaseDate: body.lastPurchaseDate || null,
+      hasBadReputation: body.hasBadReputation !== undefined ? body.hasBadReputation : false,
       source: body.source || 'Store',
-      totalPointsEarned: extraPoints,
-      totalPointsUsed: 0,
-      purchaseCount: totalPurchases > 0 ? 1 : 0,
-      log: [],
-      impressions: [],
+      totalPointsEarned: body.totalPointsEarned !== undefined ? body.totalPointsEarned : 0,
+      totalPointsUsed: body.totalPointsUsed !== undefined ? body.totalPointsUsed : 0,
+      purchaseCount: body.purchaseCount !== undefined ? body.purchaseCount : 0,
+      log: body.log || [],
+      impressions: body.impressions || [],
       primaryBranchId: body.primaryBranchId || null,
       lastModified: new Date().toISOString(),
     };
 
     const customer = await Customer.create(customerData);
 
-    // ربط الفاتورة بالعميل بعد إنشائه
-    if (initialInvoice) {
-      initialInvoice.customer = customer._id;
-      await initialInvoice.save();
-
-      // إضافة إدخال في log العميل
-      customer.log.push({
-        invoiceId: initialInvoice.invoiceCode,
-        date: new Date().toISOString(),
-        details: initialPurchase.description || 'شراء أولي',
-        amount: initialPurchase.amount,
-      });
-      await customer.save();
-    }
-
     res.status(201).json({ data: customer });
   } catch (error) {
-    // ... باقي الـ error handling زي ما هو
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.id) {
+      return next(new ApiError('Customer id already exists', 400));
+    }
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((e) => e.message);
+      return next(new ApiError(`Customer validation failed: ${messages.join(', ')}`, 400));
+    }
+    return next(new ApiError(error.message || 'Error creating customer', 500));
   }
 });
 
