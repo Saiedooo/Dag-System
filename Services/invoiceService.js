@@ -2,68 +2,59 @@ const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
 const Invoice = require('../Models/invoiceModel');
 
-// @desc    Get all invoices
-// @route   GET /api/v1/invoices
-// @access  Private
+// @desc Get all invoices
+// @route GET /api/v1/invoices
+// @access Private
 exports.getAllInvoices = asyncHandler(async (req, res) => {
-  // Later you can add filters (date range, customer, etc.)
-  const invoices = await Invoice.find({}).populate('customer');
-
+  const invoices = await Invoice.find({}).populate('customer', 'name phone');
   res.status(200).json({
     results: invoices.length,
     data: invoices,
   });
 });
 
-// @desc    Get single invoice by id
-// @route   GET /api/v1/invoices/:id
-// @access  Private
+// @desc Get single invoice by id
+// @route GET /api/v1/invoices/:id
+// @access Private
 exports.getInvoiceById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-
-  const invoice = await Invoice.findById(id).populate('customer');
-
+  const invoice = await Invoice.findById(id).populate('customer', 'name phone');
   if (!invoice) {
     return next(new ApiError(`No invoice found for this id ${id}`, 404));
   }
-
   res.status(200).json({ data: invoice });
 });
 
-// @desc    Create new invoice
-// @route   POST /api/v1/invoices
-// @access  Private
+// @desc Create new invoice
+// @route POST /api/v1/invoices
+// @access Private
 exports.createInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
     // إنشاء invoiceCode تلقائي لو مش موجود
     if (!body.invoiceCode) {
-      body.invoiceCode = `INV-${Date.now()}-${Math.floor(
-        Math.random() * 10000
-      )}`;
+      body.invoiceCode = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     }
 
-    // التحقق من الحقول الإلزامية مع رسائل أوضح
+    // التحقق من الحقول الإلزامية
     if (!body.customer) {
       return next(new ApiError('معرف العميل (customer) مطلوب', 400));
     }
-    if (!body.totalPrice || body.totalPrice <= 0) {
-      return next(
-        new ApiError('إجمالي السعر (totalPrice) مطلوب وأكبر من صفر', 400)
-      );
+
+    // تعديل مهم: نقبل totalPrice = 0 (للفواتير اللي جاية من التقييمات اليومية)
+    if (!body.totalPrice || typeof body.totalPrice !== 'number') {
+      return next(new ApiError('إجمالي السعر (totalPrice) مطلوب ويجب أن يكون رقمًا', 400));
     }
+    // مسموح بـ 0 دلوقتي
+    // if (body.totalPrice <= 0) {  // تم تعليق الشرط ده
 
     // لو products مش موجود أو فاضي، نعمل واحد افتراضي
-    if (
-      !body.products ||
-      !Array.isArray(body.products) ||
-      body.products.length === 0
-    ) {
+    if (!body.products || !Array.isArray(body.products) || body.products.length === 0) {
       body.products = [
         {
-          productName: body.productName || 'شراء متنوع (فاتورة أولى)',
-          price: body.totalPrice,
+          productName: body.productName || 'شراء متنوع (متابعة تقييم)',
+          price: body.totalPrice || 0,
           quantity: 1,
         },
       ];
@@ -71,7 +62,6 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
 
     const invoice = await Invoice.create(body);
 
-    // Populate العميل عشان يرجع اسمه في الـ response
     const populatedInvoice = await Invoice.findById(invoice._id).populate(
       'customer',
       'name phone id'
@@ -89,15 +79,19 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
     return next(new ApiError(error.message || 'فشل في إنشاء الفاتورة', 500));
   }
 });
-// @desc    Update invoice
-// @route   PUT /api/v1/invoices/:id
-// @access  Private
+
+// @desc Update invoice
+// @route PUT /api/v1/invoices/:id
+// @access Private
 exports.updateInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
-
-    // Do not allow changing _id
     delete body._id;
+
+    // نفس التساهل في التحديث
+    if (body.totalPrice !== undefined && typeof body.totalPrice !== 'number') {
+      return next(new ApiError('إجمالي السعر يجب أن يكون رقمًا', 400));
+    }
 
     const invoice = await Invoice.findByIdAndUpdate(req.params.id, body, {
       new: true,
@@ -105,37 +99,29 @@ exports.updateInvoice = asyncHandler(async (req, res, next) => {
     });
 
     if (!invoice) {
-      return next(
-        new ApiError(`No invoice found for this id ${req.params.id}`, 404)
-      );
+      return next(new ApiError(`No invoice found for this id ${req.params.id}`, 404));
     }
 
     res.status(200).json({ data: invoice });
   } catch (error) {
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e) => e.message);
-      return next(
-        new ApiError(`Invoice validation failed: ${messages.join(', ')}`, 400)
-      );
+      return next(new ApiError(`Invoice validation failed: ${messages.join(', ')}`, 400));
     }
-
     return next(new ApiError(error.message || 'Error updating invoice', 500));
   }
 });
 
-// @desc    Delete invoice
-// @route   DELETE /api/v1/invoices/:id
-// @access  Private
+// @desc Delete invoice
+// @route DELETE /api/v1/invoices/:id
+// @access Private
 exports.deleteInvoice = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
-
     const invoice = await Invoice.findByIdAndDelete(id);
-
     if (!invoice) {
       return next(new ApiError(`No invoice found for this id ${id}`, 404));
     }
-
     res.status(204).send();
   } catch (error) {
     return next(new ApiError(error.message || 'Error deleting invoice', 500));

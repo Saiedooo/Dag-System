@@ -7,10 +7,9 @@ const invoiceSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-
     customer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Customer', // صح كده
+      ref: 'Customer',
       required: true,
     },
     products: [
@@ -18,14 +17,14 @@ const invoiceSchema = new mongoose.Schema(
         productName: { type: String, required: true },
         price: { type: Number, required: true },
         quantity: { type: Number, default: 1 },
-        customerReview: { type: String }, // تقييم العميل للمنتج
-        rating: { type: Number, min: 1, max: 5 }, // تقييم رقمي
+        customerReview: { type: String },
+        rating: { type: Number, min: 1, max: 5 },
       },
     ],
-
     totalPrice: {
       type: Number,
-      required: true,
+      required: true, // لسه required، بس دلوقتي بنقبل 0 في الـ controller
+      min: 0, // أضفنا min: 0 عشان يقبل الصفر رسميًا
     },
   },
   { timestamps: true }
