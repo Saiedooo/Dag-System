@@ -188,26 +188,35 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
     createdCustomers: 0,
     updatedCustomers: 0,
     createdInvoices: 0,
+    updatedPointsAndTotals: 0,
     errors: [],
   };
 
   for (const row of data) {
     try {
+      // تحضير بيانات العميل
       const customerData = {
-        id: row['كود العميل']?.trim() || null,
-        name: row['اسم العميل']?.trim() || 'عميل بدون اسم',
-        phone: row['رقم الهاتف']?.trim() || '',
-        governorate: row['المحافظة']?.trim() || '',
-        streetAddress: row['العنوان']?.trim() || '',
+        name: (row['اسم العميل'] || row['الاسم'] || 'عميل بدون اسم').trim(),
+        phone: (
+          row['رقم الهاتف'] ||
+          row['تليفون'] ||
+          row['موبايل'] ||
+          ''
+        ).trim(),
+        governorate: (row['المحافظة'] || row['محافظة'] || '').trim(),
+        streetAddress: (row['العنوان'] || '').trim(),
       };
 
-      let customer = await Customer.findOne({
-        $or: [
-          customerData.id ? { id: customerData.id } : null,
-          customerData.phone ? { phone: customerData.phone } : null,
-          { name: customerData.name, phone: customerData.phone },
-        ].filter(Boolean),
-      });
+      // إزالة التليفون الفاضي من البحث
+      const searchQuery = [
+        customerData.phone ? { phone: customerData.phone } : null,
+        {
+          name: customerData.name,
+          phone: customerData.phone || { $exists: true },
+        },
+      ].filter(Boolean);
+
+      let customer = await Customer.findOne({ $or: searchQuery });
 
       if (!customer) {
         customer = new Customer(customerData);
@@ -218,23 +227,36 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
         }
         results.createdCustomers++;
       } else {
+        // تحديث بيانات العميل إذا تغيرت
         Object.assign(customer, customerData);
         results.updatedCustomers++;
       }
 
       await customer.save();
 
-      // إنشاء فاتورة لو في بيانات فاتورة
-      if (row['رقم الفاتورة']) {
+      let totalNewPurchases = 0;
+
+      // معالجة الفاتورة إذا موجودة في الصف
+      if (row['رقم الفاتورة'] || row['المبلغ الإجمالي']) {
+        const totalAmount = parseFloat(row['المبلغ الإجمالي']) || 0;
+        const paidAmount = parseFloat(row['المدفوع']) || 0;
+
         const invoiceData = {
-          invoiceNumber: row['رقم الفاتورة'].trim(),
+          invoiceNumber: (row['رقم الفاتورة'] || `INV-${Date.now()}`).trim(),
           date: row['تاريخ الفاتورة']
             ? new Date(row['تاريخ الفاتورة'])
             : new Date(),
-          totalAmount: parseFloat(row['المبلغ الإجمالي']) || 0,
-          paidAmount: parseFloat(row['المدفوع']) || 0,
-          remainingAmount: parseFloat(row['المتبقي']) || 0,
+          totalAmount,
+          paidAmount,
+          remainingAmount: totalAmount - paidAmount,
           customer: customer._id,
+          products: [
+            {
+              productName: row['اسم المنتج'] || 'مشتريات متنوعة (استيراد)',
+              price: totalAmount,
+              quantity: 1,
+            },
+          ],
         };
 
         let invoice = await Invoice.findOne({
@@ -246,7 +268,22 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
           invoice = new Invoice(invoiceData);
           await invoice.save();
           results.createdInvoices++;
+          totalNewPurchases += totalAmount;
         }
+      }
+
+      // تحديث النقاط وإجمالي المشتريات عند العميل
+      if (totalNewPurchases > 0) {
+        const earnedPoints = Math.floor(totalNewPurchases / 2000) * 50; // كل 2000 = 50 نقطة
+
+        customer.totalPurchases += totalNewPurchases;
+        customer.purchaseCount += 1;
+        customer.points += earnedPoints;
+        customer.totalPointsEarned += earnedPoints;
+        customer.lastPurchaseDate = new Date();
+
+        await customer.save();
+        results.updatedPointsAndTotals++;
       }
     } catch (err) {
       results.errors.push({
