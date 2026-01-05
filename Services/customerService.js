@@ -1,4 +1,4 @@
-// Services/customerService.js (النسخة الصحيحة الكاملة بعد التصليح)
+// Services/customerService.js - النسخة النهائية المصححة 100%
 
 const asyncHandler = require('express-async-handler');
 const ApiError = require('../utils/apiError');
@@ -50,7 +50,7 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const body = { ...req.body };
     delete body._id;
-    delete body.id; // لا يسمح بتغيير الـ id المخصص
+    delete body.id;
     body.lastModified = new Date().toISOString();
 
     const customer = await Customer.findOneAndUpdate({ id: id }, body, {
@@ -83,7 +83,7 @@ exports.deleteCustomer = asyncHandler(async (req, res, next) => {
   res.status(204).send();
 });
 
-// Export to CSV
+// Export to CSV - مصحح ليعمل مع Excel بشكل مثالي
 exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   const customers = await Customer.find({}).lean();
 
@@ -104,17 +104,19 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   );
 
   for (const customer of customers) {
+    const phoneText = customer.phone ? `="${customer.phone}"` : ''; // حماية من التحويل العلمي في Excel
+
     if (!customer.log || customer.log.length === 0) {
       csvRows.push(
         [
           `"${customer.name || ''}"`,
-          customer.phone || '',
+          phoneText,
           `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
           customer.governorate || '',
           customer.streetAddress || '',
           '',
           '',
-          '',
+          '0', // سعر 0 بدل فاضي
           '',
           customer.primaryBranchId || '',
         ].join(',')
@@ -137,13 +139,13 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
             csvRows.push(
               [
                 `"${customer.name || ''}"`,
-                customer.phone || '',
+                phoneText,
                 `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
                 customer.governorate || '',
                 customer.streetAddress || '',
                 logEntry.invoiceId || '',
                 `"${prod.productName || ''}"`,
-                prod.price || '',
+                prod.price || '0',
                 new Date(logEntry.date).toLocaleDateString('ar-EG'),
                 customer.primaryBranchId || '',
               ].join(',')
@@ -157,13 +159,13 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
       csvRows.push(
         [
           `"${customer.name || ''}"`,
-          customer.phone || '',
+          phoneText,
           `https://wa.me/${customer.phone?.replace(/[^0-9]/g, '') || ''}`,
           customer.governorate || '',
           customer.streetAddress || '',
           logEntry.invoiceId || '',
           `"${logEntry.details || ''}"`,
-          logEntry.amount || '',
+          logEntry.amount || '0',
           new Date(logEntry.date).toLocaleDateString('ar-EG'),
           customer.primaryBranchId || '',
         ].join(',')
@@ -174,11 +176,10 @@ exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   const csvContent = csvRows.join('\n');
   res.header('Content-Type', 'text/csv; charset=utf-8');
   res.attachment('عملاء_ومشترياتهم.csv');
-  res.send('\uFEFF' + csvContent);
+  res.send('\uFEFF' + csvContent); // BOM للعربي
 });
 
-// Import from CSV - النسخة المصححة بالكامل
-// Import from CSV - النسخة المصححة نهائيًا (بدون أخطاء نحوية)
+// Import from CSV - النسخة النهائية المضمونة
 exports.importCustomersCSV = asyncHandler(async (req, res) => {
   const { data } = req.body;
   const results = {
@@ -191,91 +192,100 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
   for (const row of data) {
     try {
-      // تخطي السطور الفاضية تمامًا
+      // تخطي السطور الفارغة تمامًا
       if (!row['اسم العميل'] && !row['رقم الهاتف']) continue;
+
+      // تنظيف رقم الهاتف من أي تحويل علمي أو روابط
+      let phoneRaw = row['رقم الهاتف'] || '';
+      let phone = phoneRaw.toString().trim();
+      phone = phone.replace(/https?:\/\/wa\.me\//g, '').replace(/[^0-9]/g, '');
 
       const customerData = {
         name: (row['اسم العميل'] || '').trim() || 'عميل بدون اسم',
-        phone: (row['رقم الهاتف'] || '').trim(),
+        phone: phone || '',
         governorate: (row['المحافظة'] || '').trim(),
         streetAddress: (row['العنوان'] || '').trim(),
-        primaryBranchId: row['كود الفرع'] || '',
+        primaryBranchId: (row['كود الفرع'] || '').trim(),
       };
 
-      // البحث بالتليفون أولاً (الأدق)
-      let customer = await Customer.findOne({ phone: customerData.phone });
+      // البحث عن العميل بالتليفون أولاً
+      let customer = phone
+        ? await Customer.findOne({ phone: customerData.phone })
+        : null;
 
-      // لو مش موجود بالتليفون، ابحث بالاسم + تليفون
-      if (!customer && customerData.name && customerData.phone) {
+      // لو مش موجود، ابحث بالاسم + تليفون
+      if (!customer) {
         customer = await Customer.findOne({
           name: customerData.name,
-          phone: customerData.phone,
+          phone: customerData.phone || { $exists: true },
         });
       }
 
-      // لو مش موجود خالص، أنشئ جديد
-      if (!customer) {
+      const isNew = !customer;
+      if (isNew) {
         customer = new Customer(customerData);
         customer.id = `CUST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         results.createdCustomers++;
       } else {
-        // تحديث البيانات الأساسية دايمًا
         Object.assign(customer, customerData);
         results.updatedCustomers++;
       }
 
-      // قراءة المبلغ (الأولوية لسعر المنتج لأنه موجود في التصدير)
+      // قراءة السعر من أي عمود ممكن
       const priceStr =
         row['سعر المنتج'] || row['المبلغ الإجمالي'] || row['المجموع'] || '0';
-      const totalAmount = parseFloat(priceStr.replace(/[^0-9.-]/g, '')) || 0;
+      const totalAmount = parseFloat(priceStr) || 0;
 
       if (totalAmount > 0 || row['رقم الفاتورة']) {
         const invoiceCode =
-          row['رقم الفاتورة']?.trim() ||
+          (row['رقم الفاتورة'] || '').trim() ||
           `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-        // إنشاء فاتورة لو مش موجودة
-        const existingInvoice = await Invoice.findOne({ invoiceCode });
-        if (!existingInvoice && totalAmount > 0) {
-          await Invoice.create({
-            invoiceCode,
-            customer: customer._id,
-            totalPrice: totalAmount,
-            products: [
-              {
-                productName: row['اسم المنتج'] || 'مشتريات',
-                price: totalAmount,
-                quantity: 1,
-              },
-            ],
-          });
-          results.createdInvoices++;
+        // إنشاء فاتورة لو مش موجودة وفي مبلغ
+        if (totalAmount > 0) {
+          const existing = await Invoice.findOne({ invoiceCode });
+          if (!existing) {
+            await Invoice.create({
+              invoiceCode,
+              customer: customer._id,
+              totalPrice: totalAmount,
+              products: [
+                {
+                  productName: row['اسم المنتج'] || 'مشتريات من CSV',
+                  price: totalAmount,
+                  quantity: 1,
+                },
+              ],
+            });
+            results.createdInvoices++;
+          }
         }
 
         // إضافة log لو مش موجود
+        customer.log = customer.log || [];
         if (!customer.log.some((e) => e.invoiceId === invoiceCode)) {
           customer.log.push({
             invoiceId: invoiceCode,
             date: row['التاريخ'] || new Date().toISOString().split('T')[0],
             amount: totalAmount,
-            details: row['اسم المنتج'] || 'مشتريات',
+            details: row['اسم المنتج'] || 'مشتريات من CSV',
             pointsChange:
               totalAmount > 0 ? Math.floor(totalAmount / 2000) * 50 : 0,
             status: 'تم التسليم',
           });
         }
 
+        // تحديث النقاط والإجماليات
         if (totalAmount > 0) {
-          const earnedPoints = Math.floor(totalAmount / 2000) * 50;
+          const earned = Math.floor(totalAmount / 2000) * 50;
           customer.totalPurchases =
             (customer.totalPurchases || 0) + totalAmount;
           customer.purchaseCount = (customer.purchaseCount || 0) + 1;
-          customer.points = (customer.points || 0) + earnedPoints;
+          customer.points = (customer.points || 0) + earned;
           customer.totalPointsEarned =
-            (customer.totalPointsEarned || 0) + earnedPoints;
+            (customer.totalPointsEarned || 0) + earned;
           customer.lastPurchaseDate = new Date();
 
-          // تصنيف
           if (customer.totalPurchases >= 10000)
             customer.classification = 'ذهبي';
           else if (customer.totalPurchases >= 5000)
@@ -290,14 +300,13 @@ exports.importCustomersCSV = asyncHandler(async (req, res) => {
 
       await customer.save();
     } catch (err) {
-      results.errors.push({ row, error: err.message });
-      console.error('Error importing row:', err); // مهم للديباج
+      results.errors.push({ row, error: err.message || 'خطأ غير معروف' });
     }
   }
 
-  res.json({
+  res.status(200).json({
     success: true,
-    message: `تم الاستيراد بنجاح: ${results.createdCustomers} جديد، ${results.updatedCustomers} محدث، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} نقاط`,
+    message: `تم الاستيراد بنجاح: ${results.createdCustomers} عميل جديد، ${results.updatedCustomers} محدث، ${results.createdInvoices} فاتورة، ${results.pointsUpdated} تحديث نقاط`,
     results,
   });
 });
