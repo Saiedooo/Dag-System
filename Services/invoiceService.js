@@ -37,36 +37,58 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
-    // Basic validation for required fields
-    if (!body.invoiceCode || !body.customer || !body.products || !body.totalPrice) {
-      return next(new ApiError('invoiceCode, customer, products and totalPrice are required', 400));
+    // إنشاء invoiceCode تلقائي لو مش موجود
+    if (!body.invoiceCode) {
+      body.invoiceCode = `INV-${Date.now()}-${Math.floor(
+        Math.random() * 10000
+      )}`;
     }
 
-    // Ensure products is an array
-    if (!Array.isArray(body.products)) {
-      return next(new ApiError('products must be an array', 400));
+    // التحقق من الحقول الإلزامية مع رسائل أوضح
+    if (!body.customer) {
+      return next(new ApiError('معرف العميل (customer) مطلوب', 400));
+    }
+    if (!body.totalPrice || body.totalPrice <= 0) {
+      return next(
+        new ApiError('إجمالي السعر (totalPrice) مطلوب وأكبر من صفر', 400)
+      );
+    }
+
+    // لو products مش موجود أو فاضي، نعمل واحد افتراضي
+    if (
+      !body.products ||
+      !Array.isArray(body.products) ||
+      body.products.length === 0
+    ) {
+      body.products = [
+        {
+          productName: body.productName || 'شراء متنوع (فاتورة أولى)',
+          price: body.totalPrice,
+          quantity: 1,
+        },
+      ];
     }
 
     const invoice = await Invoice.create(body);
 
-    res.status(201).json({ data: invoice });
-  } catch (error) {
-    if (error.code === 11000 && error.keyPattern && error.keyPattern.invoiceCode) {
-      // Duplicate invoiceCode
-      return next(new ApiError('Invoice code already exists', 400));
-    }
+    // Populate العميل عشان يرجع اسمه في الـ response
+    const populatedInvoice = await Invoice.findById(invoice._id).populate(
+      'customer',
+      'name phone id'
+    );
 
+    res.status(201).json({ data: populatedInvoice });
+  } catch (error) {
+    if (error.code === 11000) {
+      return next(new ApiError('كود الفاتورة مكرر', 400));
+    }
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e) => e.message);
-      return next(
-        new ApiError(`Invoice validation failed: ${messages.join(', ')}`, 400)
-      );
+      return next(new ApiError(`خطأ في البيانات: ${messages.join(', ')}`, 400));
     }
-
-    return next(new ApiError(error.message || 'Error creating invoice', 500));
+    return next(new ApiError(error.message || 'فشل في إنشاء الفاتورة', 500));
   }
 });
-
 // @desc    Update invoice
 // @route   PUT /api/v1/invoices/:id
 // @access  Private
@@ -119,5 +141,3 @@ exports.deleteInvoice = asyncHandler(async (req, res, next) => {
     return next(new ApiError(error.message || 'Error deleting invoice', 500));
   }
 });
-
-
