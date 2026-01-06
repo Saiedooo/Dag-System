@@ -46,14 +46,12 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
-    // توليد كود الفاتورة لو مش موجود
     if (!body.invoiceCode) {
       body.invoiceCode = `INV-${Date.now()}-${Math.floor(
         Math.random() * 10000
       )}`;
     }
 
-    // التحقق من العميل
     if (!body.customer) {
       return next(new ApiError('معرف العميل مطلوب', 400));
     }
@@ -63,61 +61,32 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
       return next(new ApiError(`العميل غير موجود: ${body.customer}`, 400));
     }
 
-    // ←←← أهم حاجة: نحفظ الـ custom id كـ string بس
-    body.customer = customer.id; // String زي "CUST-..."
+    // نحفظ الـ custom id كـ String مباشرة
+    body.customer = customer.id;
 
-    // السعر
     body.totalPrice = Number(body.totalPrice) || 0;
 
-    // المنتجات الافتراضية لو مفيش
     if (!body.products || body.products.length === 0) {
       body.products = [
         {
-          productName: 'متابعة تقييم يومي',
-          price: 0,
+          productName: 'شراء أولي',
+          price: body.totalPrice,
           quantity: 1,
         },
       ];
     }
 
-    // تاريخ الفاتورة لو مش موجود
-    if (!body.invoiceDate) {
-      body.invoiceDate = new Date();
-    }
-
-    // إنشاء الفاتورة
     const invoice = await Invoice.create(body);
 
-    // إنشاء مهمة التقييم تلقائيًا
-    await DailyFeedbackTask.findOneAndUpdate(
-      { invoiceId: invoice.invoiceCode },
-      {
-        customerId: customer.id,
-        customerName: customer.name,
-        invoiceId: invoice.invoiceCode,
-        invoiceDate: body.invoiceDate,
-        status: 'Pending',
-        branchId: customer.primaryBranchId || null,
-      },
-      { upsert: true, new: true }
-    );
+    // (اختياري) إضافة مهمة تقييم لو عايز
+    // await DailyFeedbackTask.findOneAndUpdate(...)
 
     res.status(201).json({ data: invoice });
   } catch (error) {
-    console.error('خطأ في createInvoice:', error);
-
     if (error.code === 11000) {
-      return next(new ApiError('كود الفاتورة مكرر بالفعل', 400));
+      return next(new ApiError('كود الفاتورة مكرر', 400));
     }
-
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors)
-        .map((e) => e.message)
-        .join(', ');
-      return next(new ApiError(`خطأ في البيانات: ${messages}`, 400));
-    }
-
-    return next(new ApiError('فشل في إنشاء الفاتورة', 500));
+    return next(new ApiError(error.message || 'فشل في إنشاء الفاتورة', 500));
   }
 });
 // @desc Update invoice

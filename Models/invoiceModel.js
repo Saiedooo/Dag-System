@@ -8,10 +8,10 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
     customer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Customer',
+      type: String, // ←←← String مش ObjectId
       required: true,
     },
+    // احذف أي ref: 'Customer' لو موجود
     products: [
       {
         productName: { type: String, required: true },
