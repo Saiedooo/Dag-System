@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const invoiceSchema = new mongoose.Schema(
   {
     invoiceCode: {
@@ -6,14 +8,22 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
     customer: {
-      type: String,        // ←←←← String مش ObjectId
+      type: String, // custom id مثل CUST-...
       required: true,
     },
-    products: [ ... ],     // زي ما هو
+    products: [
+      {
+        productName: { type: String, required: true },
+        price: { type: Number, required: true },
+        quantity: { type: Number, default: 1 },
+        customerReview: { type: String },
+        rating: { type: Number, min: 1, max: 5 },
+      },
+    ],
     totalPrice: {
       type: Number,
       required: true,
-      min: 0,              // عشان يقبل 0
+      min: 0, // نقبل الصفر دلوقتي
     },
     invoiceDate: {
       type: Date,
