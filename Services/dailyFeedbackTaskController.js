@@ -30,3 +30,26 @@ exports.createFeedbackTask = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({ data: task });
 });
+
+exports.getAllFeedbackTasks = asyncHandler(async (req, res) => {
+  const tasks = await DailyFeedbackTask.find({})
+    .sort({ invoiceDate: -1 }) // الأحدث أولاً
+    .lean();
+
+  res.status(200).json({
+    results: tasks.length,
+    data: tasks,
+  });
+});
+
+exports.deleteFeedbackTask = asyncHandler(async (req, res, next) => {
+  const { invoiceId } = req.params;
+
+  const task = await DailyFeedbackTask.findOneAndDelete({ invoiceId });
+
+  if (!task) {
+    return next(new ApiError(`لا توجد مهمة بهذا الكود: ${invoiceId}`, 404));
+  }
+
+  res.status(204).send();
+});
