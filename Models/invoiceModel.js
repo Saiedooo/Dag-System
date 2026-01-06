@@ -8,10 +8,9 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
     customer: {
-      type: String, // ←←← String مش ObjectId
+      type: String, // <--- هنا التعديل المهم
       required: true,
     },
-    // احذف أي ref: 'Customer' لو موجود
     products: [
       {
         productName: { type: String, required: true },
@@ -24,6 +23,11 @@ const invoiceSchema = new mongoose.Schema(
     totalPrice: {
       type: Number,
       required: true,
+      min: 0,
+    },
+    invoiceDate: {
+      type: Date,
+      default: Date.now,
     },
   },
   { timestamps: true }
