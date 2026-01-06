@@ -53,50 +53,49 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
       )}`;
     }
 
-    // التحقق من وجود العميل بالـ custom id فقط
+    // التحقق من العميل
     if (!body.customer) {
-      return next(new ApiError('معرف العميل (customer) مطلوب', 400));
+      return next(new ApiError('معرف العميل مطلوب', 400));
     }
 
     const customer = await Customer.findOne({ id: body.customer });
     if (!customer) {
-      return next(
-        new ApiError(`لا يوجد عميل بهذا المعرف: ${body.customer}`, 400)
-      );
+      return next(new ApiError(`العميل غير موجود: ${body.customer}`, 400));
     }
 
-    // ←←←← أهم تعديل: نحفظ الـ custom id مباشرة (مش _id)
+    // ←←← أهم حاجة: نحفظ الـ custom id كـ string بس
     body.customer = customer.id; // String زي "CUST-..."
 
-    // نقبل totalPrice = 0 عادي
+    // السعر
     body.totalPrice = Number(body.totalPrice) || 0;
 
-    // لو مفيش products، نعمل واحد افتراضي
-    if (
-      !body.products ||
-      !Array.isArray(body.products) ||
-      body.products.length === 0
-    ) {
+    // المنتجات الافتراضية لو مفيش
+    if (!body.products || body.products.length === 0) {
       body.products = [
         {
-          productName: 'متابعة تقييم يومي - انطباع العميل',
-          price: body.totalPrice,
+          productName: 'متابعة تقييم يومي',
+          price: 0,
           quantity: 1,
         },
       ];
     }
 
+    // تاريخ الفاتورة لو مش موجود
+    if (!body.invoiceDate) {
+      body.invoiceDate = new Date();
+    }
+
     // إنشاء الفاتورة
     const invoice = await Invoice.create(body);
 
-    // إضافة مهمة تقييم تلقائيًا
+    // إنشاء مهمة التقييم تلقائيًا
     await DailyFeedbackTask.findOneAndUpdate(
       { invoiceId: invoice.invoiceCode },
       {
         customerId: customer.id,
         customerName: customer.name,
         invoiceId: invoice.invoiceCode,
-        invoiceDate: body.invoiceDate || new Date(),
+        invoiceDate: body.invoiceDate,
         status: 'Pending',
         branchId: customer.primaryBranchId || null,
       },
@@ -105,13 +104,22 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
 
     res.status(201).json({ data: invoice });
   } catch (error) {
+    console.error('خطأ في createInvoice:', error);
+
     if (error.code === 11000) {
-      return next(new ApiError('كود الفاتورة مكرر', 400));
+      return next(new ApiError('كود الفاتورة مكرر بالفعل', 400));
     }
-    return next(new ApiError(error.message || 'فشل في إنشاء الفاتورة', 500));
+
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors)
+        .map((e) => e.message)
+        .join(', ');
+      return next(new ApiError(`خطأ في البيانات: ${messages}`, 400));
+    }
+
+    return next(new ApiError('فشل في إنشاء الفاتورة', 500));
   }
 });
-
 // @desc Update invoice
 // @route PUT /api/v1/invoices/:id
 // @access Private
