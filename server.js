@@ -24,14 +24,13 @@ process.on('uncaughtException', (err) => {
 // express app
 const app = express();
 
-// Enable CORS before other middleware
+// Enable CORS
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:5174',
 ];
 
-// Add production frontend URL from environment variable if provided
 if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
@@ -46,16 +45,28 @@ app.use(
   })
 );
 
+// مهم جدًا: إيقاف الـ Caching تمامًا لكل الـ API
+app.use('/api/v1', (req, res, next) => {
+  // منع أي نوع من الـ caching سواء في المتصفح أو في CDN زي Vercel
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, proxy-revalidate, private'
+  );
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+
 // parse JSON bodies
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // زيادة الحجم لو فيه CSV كبير
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
   console.log(`mode: ${process.env.NODE_ENV}`);
 }
 
-// connect to database FIRST before routes
-// Note: For Vercel serverless, connection is cached and reused
+// connect to database
 dbConnection().catch((err) => {
   console.error('Failed to connect to database:', err);
   if (!process.env.VERCEL) {
@@ -63,6 +74,7 @@ dbConnection().catch((err) => {
   }
 });
 
+// Routes
 app.use('/api/data', stateRoute);
 app.use('/api/v1/users', userRoute);
 app.use('/api/v1/auth', authRoute);
@@ -75,11 +87,25 @@ app.use(
   '/api/v1/daily-feedback-tasks',
   require('./Routes/dailyFeedbackTaskRoutes')
 );
-// app.use('/api/v1/daily-feedback-tasks', require('./Routes/dailyFeedbackTaskRoutes'));
+
+// Global error handler
 app.use(globalError);
 
-// On Vercel (@vercel/node) we should export the app without calling listen.
-// Locally we still start the server for development.
+// Handle unhandled rejections
+process.on('unhandledRejection', (err) => {
+  console.error(`UnhandledRejection Errors: ${err?.name} | ${err?.message}`);
+  if (server && server.close) {
+    server.close(() => {
+      console.error('Shutting down....');
+      process.exit(1);
+    });
+    setTimeout(() => process.exit(1), 5000);
+  } else {
+    process.exit(1);
+  }
+});
+
+// Local development server
 let server;
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 8000;
@@ -88,20 +114,5 @@ if (!process.env.VERCEL) {
   });
 }
 
-// Handle rejection outside express
-process.on('unhandledRejection', (err) => {
-  console.error(`UnhandledRejection Errors: ${err?.name} | ${err?.message}`);
-  if (server && server.close) {
-    server.close(() => {
-      console.error('Shutting down....');
-      process.exit(1);
-    });
-    // force exit in case server.close hangs
-    setTimeout(() => process.exit(1), 5000);
-  } else {
-    process.exit(1);
-  }
-});
-
-// Export the app for Vercel serverless
+// Export for Vercel
 module.exports = app;
