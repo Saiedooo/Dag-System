@@ -45,16 +45,17 @@ app.use(
   })
 );
 
-// مهم جدًا: إيقاف الـ Caching تمامًا لكل الـ API
 app.use('/api/v1', (req, res, next) => {
-  // منع أي نوع من الـ caching سواء في المتصفح أو في CDN زي Vercel
-  res.setHeader(
-    'Cache-Control',
-    'no-store, no-cache, must-revalidate, proxy-revalidate, private'
-  );
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
+  // للـ GET requests فقط، اسمح بـ caching قصير
+  if (req.method === 'GET') {
+    res.setHeader(
+      'Cache-Control',
+      'public, max-age=300, stale-while-revalidate=60'
+    ); // 5 دقايق
+  } else {
+    // للـ POST/PUT/DELETE → no cache
+    res.setHeader('Cache-Control', 'no-store, no-cache');
+  }
   next();
 });
 

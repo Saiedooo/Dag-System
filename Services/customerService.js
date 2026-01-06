@@ -6,11 +6,21 @@ const Customer = require('../Models/customerModel');
 const Invoice = require('../Models/invoiceModel');
 
 // Get all customers
+// في customerController.js
 exports.getAllCustomers = asyncHandler(async (req, res) => {
-  const customers = await Customer.find({}).lean();
-  res.status(200).json({ results: customers.length, data: customers });
-});
+  const customers = await Customer.find({})
+    .select('id name phone governorate') // بس الحقول اللي محتاجها
+    .lean();
 
+  // رجّعها كـ object عشان الـ lookup أسرع
+  const customersMap = {};
+  customers.forEach((c) => {
+    customersMap[c.id] = c;
+    if (c.phone) customersMap[c.phone] = c;
+  });
+
+  res.status(200).json({ data: customersMap });
+});
 // Get single customer by custom id field
 exports.getCustomerById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
