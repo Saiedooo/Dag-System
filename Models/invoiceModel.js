@@ -8,7 +8,8 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
     customer: {
-      type: String, // custom id مثل CUST-...
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
       required: true,
     },
     products: [
@@ -23,11 +24,6 @@ const invoiceSchema = new mongoose.Schema(
     totalPrice: {
       type: Number,
       required: true,
-      min: 0, // نقبل الصفر دلوقتي
-    },
-    invoiceDate: {
-      type: Date,
-      default: Date.now,
     },
   },
   { timestamps: true }
