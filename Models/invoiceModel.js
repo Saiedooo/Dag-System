@@ -8,8 +8,7 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
     customer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Customer',
+      type: String, // custom id مثل CUST-123456
       required: true,
     },
     products: [
