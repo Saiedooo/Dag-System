@@ -8,26 +8,34 @@ const Customer = require('../Models/customerModel');
 exports.createDailyFeedback = asyncHandler(async (req, res, next) => {
   const body = { ...req.body };
 
-  // التحقق من وجود العميل بالـ custom id
-  if (!body.customer) {
-    return next(new ApiError('معرف العميل (customer) مطلوب', 400));
+  // التأكد إن customer هو String (custom id)
+  if (!body.customer || typeof body.customer !== 'string') {
+    return next(
+      new ApiError('معرف العميل (customer) مطلوب ويجب أن يكون نصي', 400)
+    );
   }
 
-  const customer = await Customer.findOne({ id: body.customer });
+  // البحث بالـ custom id
+  const customer = await Customer.findOne({ id: body.customer }).select(
+    'id name phone classification points totalPurchases governorate primaryBranchId'
+  );
+
   if (!customer) {
+    console.log('عميل غير موجود بالكود:', body.customer); // للديباج
     return next(new ApiError(`لا يوجد عميل بهذا الكود: ${body.customer}`, 404));
   }
 
-  // حفظ الـ custom id فقط
+  // نخزن الـ custom id فقط
   body.customer = customer.id;
 
   const feedback = await DailyFeedback.create(body);
 
-  // جلب التقييم مع بيانات العميل
+  // جلب التقييم مع بيانات العميل (populate)
   const populatedFeedback = await DailyFeedback.findById(feedback._id).populate(
     {
       path: 'customerData',
-      select: 'id name phone classification points totalPurchases governorate',
+      select:
+        'id name phone classification points totalPurchases governorate primaryBranchId',
     }
   );
 
@@ -36,7 +44,6 @@ exports.createDailyFeedback = asyncHandler(async (req, res, next) => {
     data: populatedFeedback,
   });
 });
-
 // جلب كل التقييمات اليومية
 exports.getAllDailyFeedbacks = asyncHandler(async (req, res) => {
   const feedbacks = await DailyFeedback.find({})
