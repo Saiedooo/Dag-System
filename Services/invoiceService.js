@@ -46,6 +46,7 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
   try {
     const body = { ...req.body };
 
+    // توليد كود الفاتورة لو مش موجود
     if (!body.invoiceCode) {
       body.invoiceCode = `INV-${Date.now()}-${Math.floor(
         Math.random() * 10000
@@ -64,24 +65,31 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // نحفظ الـ custom id مباشرة (مش _id)
-    body.customer = customer.id; // String
+    // ←←←← أهم تعديل: نحفظ الـ custom id مباشرة (مش _id)
+    body.customer = customer.id; // String زي "CUST-..."
 
+    // نقبل totalPrice = 0 عادي
     body.totalPrice = Number(body.totalPrice) || 0;
 
-    if (!body.products || body.products.length === 0) {
+    // لو مفيش products، نعمل واحد افتراضي
+    if (
+      !body.products ||
+      !Array.isArray(body.products) ||
+      body.products.length === 0
+    ) {
       body.products = [
         {
-          productName: 'متابعة تقييم يومي',
+          productName: 'متابعة تقييم يومي - انطباع العميل',
           price: body.totalPrice,
           quantity: 1,
         },
       ];
     }
 
+    // إنشاء الفاتورة
     const invoice = await Invoice.create(body);
 
-    // بعد الإنشاء، نضيف مهمة تقييم تلقائيًا
+    // إضافة مهمة تقييم تلقائيًا
     await DailyFeedbackTask.findOneAndUpdate(
       { invoiceId: invoice.invoiceCode },
       {
@@ -97,7 +105,10 @@ exports.createInvoice = asyncHandler(async (req, res, next) => {
 
     res.status(201).json({ data: invoice });
   } catch (error) {
-    // باقي الـ error handling زي ما هو
+    if (error.code === 11000) {
+      return next(new ApiError('كود الفاتورة مكرر', 400));
+    }
+    return next(new ApiError(error.message || 'فشل في إنشاء الفاتورة', 500));
   }
 });
 
