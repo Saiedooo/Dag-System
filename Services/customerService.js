@@ -5,21 +5,15 @@ const ApiError = require('../utils/apiError');
 const Customer = require('../Models/customerModel');
 const Invoice = require('../Models/invoiceModel');
 
-// Get all customers
-// في customerController.js
+// Get all customers - يرجع array مش object عشان الـ frontend يشتغل صح
 exports.getAllCustomers = asyncHandler(async (req, res) => {
-  const customers = await Customer.find({})
-    .select('id name phone governorate') // بس الحقول اللي محتاجها
-    .lean();
+  const customers = await Customer.find({}).lean(); // نجيب كل الحقول عادي (مش بس id و name)
 
-  // رجّعها كـ object عشان الـ lookup أسرع
-  const customersMap = {};
-  customers.forEach((c) => {
-    customersMap[c.id] = c;
-    if (c.phone) customersMap[c.phone] = c;
+  // نرجعها كـ array مباشرة مع results عشان الـ frontend يعرف العدد
+  res.status(200).json({
+    results: customers.length,
+    data: customers, // ← array هنا، مش object/map
   });
-
-  res.status(200).json({ data: customersMap });
 });
 // Get single customer by custom id field
 exports.getCustomerById = asyncHandler(async (req, res, next) => {
