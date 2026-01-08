@@ -78,15 +78,53 @@ exports.updateCustomer = asyncHandler(async (req, res, next) => {
 });
 
 // Delete customer
-exports.deleteCustomer = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-  const customer = await Customer.findOneAndDelete({ id: id });
-  if (!customer) {
-    return next(new ApiError(`No customer for this id ${id}`, 404));
-  }
-  res.status(204).send();
-});
 
+exports.deleteCustomer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('=== DELETE CUSTOMER REQUEST ===');
+    console.log('ID to delete:', id);
+
+    // Use the helper function to find customer
+    const customer = await findCustomerById(id);
+
+    if (!customer) {
+      console.log('❌ Customer not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+      });
+    }
+
+    console.log('Found customer:', {
+      _id: customer._id,
+      id: customer.id,
+      name: customer.name,
+    });
+
+    // Delete from database
+    await Customer.findByIdAndDelete(customer._id);
+
+    console.log('✅ Customer deleted successfully');
+
+    // هذا هو الإصلاح: نرجع success: true مع message
+    res.status(200).json({
+      success: true,
+      message: 'تم حذف العميل بنجاح',
+      data: {
+        id: customer.id,
+        name: customer.name,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error deleting customer:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error deleting customer',
+    });
+  }
+};
 // Export to CSV - مصحح ليعمل مع Excel بشكل مثالي
 exports.exportCustomersCSV = asyncHandler(async (req, res) => {
   const customers = await Customer.find({}).lean();

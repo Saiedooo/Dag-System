@@ -91,14 +91,16 @@ const customerSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    email: String,
-    joinDate: String,
-    type: {
+    governorate: {
       type: String,
-      enum: Object.values(CustomerType),
+      required: true, // تأكد أن هذا موجود ومطلوب
     },
-    governorate: String,
     streetAddress: String,
+    gender: {
+      type: String,
+      enum: ['male', 'female'],
+      default: 'male',
+    },
     classification: {
       type: String,
       enum: Object.values(CustomerClassification),
